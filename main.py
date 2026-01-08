@@ -14,13 +14,16 @@ from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
 from telethon import TelegramClient
 
-# ייבוא Android
+# ייבוא Android - בצורה נכונה!
+ANDROID = False
 try:
-    from android.permissions import request_permissions, Permission
-    from android.storage import primary_external_storage_path
+    from jnius import autoclass
+    from android.runnable import run_on_ui_thread
+    Environment = autoclass('android.os.Environment')
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
     ANDROID = True
 except ImportError:
-    ANDROID = False
+    pass
 
 # הגדרת מערכת logging מתקדמת
 class AndroidLogger:
@@ -34,9 +37,11 @@ class AndroidLogger:
             # קביעת תיקיית logs
             if ANDROID:
                 try:
-                    storage = primary_external_storage_path()
-                    log_dir = os.path.join(storage, 'Download', 'TelegramBackup_Logs')
-                except:
+                    # שימוש ב-Environment.getExternalStorageDirectory()
+                    storage_dir = Environment.getExternalStorageDirectory().getAbsolutePath()
+                    log_dir = os.path.join(storage_dir, 'Download', 'TelegramBackup_Logs')
+                except Exception as e:
+                    # fallback
                     log_dir = '/sdcard/Download/TelegramBackup_Logs'
             else:
                 log_dir = os.path.expanduser('~/TelegramBackup_Logs')
@@ -85,10 +90,11 @@ logger = app_logger.logger
 # הגדרת exception handler גלובלי
 sys.excepthook = app_logger.log_exception
 
-# בקשת הרשאות Android
+# בקשת הרשאות Android - בצורה נכונה!
 if ANDROID:
     try:
         logger.info("מבקש הרשאות Android...")
+        from android.permissions import request_permissions, Permission
         request_permissions([
             Permission.INTERNET,
             Permission.WRITE_EXTERNAL_STORAGE,
@@ -96,7 +102,7 @@ if ANDROID:
         ])
         logger.info("הרשאות התקבלו")
     except Exception as e:
-        logger.error(f"שגיאה בבקשת הרשאות: {e}")
+        logger.warning(f"לא הצלחנו לבקש הרשאות (זה תקין בגרסאות ישנות): {e}")
 
 KV = '''
 MDBoxLayout:
@@ -199,11 +205,11 @@ class TelegramBackupApp(MDApp):
             # הגדרת תיקיית עבודה
             try:
                 if ANDROID:
-                    self.storage_path = primary_external_storage_path()
+                    storage_dir = Environment.getExternalStorageDirectory().getAbsolutePath()
+                    self.session_dir = os.path.join(storage_dir, 'TelegramBackup')
                 else:
-                    self.storage_path = os.path.expanduser('~')
+                    self.session_dir = os.path.expanduser('~/TelegramBackup')
                 
-                self.session_dir = os.path.join(self.storage_path, 'TelegramBackup')
                 os.makedirs(self.session_dir, exist_ok=True)
                 logger.info(f"תיקיית עבודה: {self.session_dir}")
             except Exception as e:
