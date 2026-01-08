@@ -10,6 +10,15 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
 from telethon import TelegramClient
+from android.permissions import request_permissions, Permission
+from android.storage import primary_external_storage_path
+
+# בקשת הרשאות
+request_permissions([
+    Permission.INTERNET,
+    Permission.WRITE_EXTERNAL_STORAGE,
+    Permission.READ_EXTERNAL_STORAGE
+])
 
 # הגדרת לוגים
 logging.basicConfig(level=logging.INFO)
@@ -88,7 +97,7 @@ MDBoxLayout:
 
             MDLabel:
                 id: status_log
-                text: "מוכן...\n"
+                text: "מוכן...\\n"
                 halign: "left"
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -101,14 +110,28 @@ class TelegramBackupApp(MDApp):
         self.theme_cls.theme_style = "Light"
         self.client = None
         self.phone = None
+        
+        # הגדרת תיקיית עבודה ב-Android
+        try:
+            self.storage_path = primary_external_storage_path()
+            self.session_dir = os.path.join(self.storage_path, 'TelegramBackup')
+            os.makedirs(self.session_dir, exist_ok=True)
+            self.log(f"תיקיית עבודה: {self.session_dir}")
+        except Exception as e:
+            # אם נכשל, השתמש בתיקייה פנימית
+            self.session_dir = self.user_data_dir
+            self.log(f"משתמש בתיקייה פנימית: {self.session_dir}")
+        
         return Builder.load_string(KV)
 
     def log(self, message):
         def update_ui(dt):
-            current_text = self.root.ids.status_log.text
-            self.root.ids.status_log.text = message + "\n" + current_text
+            try:
+                current_text = self.root.ids.status_log.text
+                self.root.ids.status_log.text = message + "\\n" + current_text
+            except:
+                pass
         
-        # עדכון ה-UI חייב להתבצע מה-Thread הראשי
         from kivy.clock import Clock
         Clock.schedule_once(update_ui)
         print(message)
@@ -122,9 +145,11 @@ class TelegramBackupApp(MDApp):
             self.log("חסרים פרטים (API ID/HASH/Phone)")
             return
         
-        # שמירת הלוגיקה והלקוח ברמת האפליקציה
         try:
-             self.client = TelegramClient(f'session_{phone.replace("+", "")}', int(api_id), api_hash)
+            session_file = os.path.join(self.session_dir, f'session_{phone.replace("+", "")}')
+            self.client = TelegramClient(session_file, int(api_id), api_hash)
+            self.phone = phone
+            self.log(f"קובץ session: {session_file}")
         except Exception as e:
             self.log(f"שגיאה ביצירת לקוח: {e}")
             return
@@ -132,7 +157,6 @@ class TelegramBackupApp(MDApp):
         threading.Thread(target=self._send_code_thread, args=(phone,), daemon=True).start()
 
     def _send_code_thread(self, phone):
-        # יצירת Loop חדש עבור ה-Thread הזה
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -144,26 +168,34 @@ class TelegramBackupApp(MDApp):
                 if not await self.client.is_user_authorized():
                     self.log("שולח בקשת קוד אימות...")
                     await self.client.send_code_request(phone)
-                    self.log("קוד נשלח! אנא הזן אותו בשדה המתאים ולחץ 'התחבר'.")
+                    self.log("קוד נשלח! הזן אותו ולחץ 'התחבר'.")
                     
-                    # שינוי מצב כפתורים (דרך ה-Main Thread אם צריך, אבל Kivy לרוב מסתדר עם Property changes)
-                    # עדיף להשתמש ב-Clock אם זה קריטי, אבל ננסה ישיר
-                    self.root.ids.code.disabled = False
-                    self.root.ids.login_btn.disabled = False
+                    from kivy.clock import Clock
+                    def enable_fields(dt):
+                        self.root.ids.code.disabled = False
+                        self.root.ids.login_btn.disabled = False
+                    Clock.schedule_once(enable_fields)
                 else:
-                    self.log("כבר מחובר למשתמש זה!")
-                    self.root.ids.start_btn.disabled = False
+                    self.log("כבר מחובר!")
+                    from kivy.clock import Clock
+                    def enable_backup(dt):
+                        self.root.ids.start_btn.disabled = False
+                    Clock.schedule_once(enable_backup)
             except Exception as e:
-                self.log(f"שגיאה בשליחת קוד: {e}")
+                self.log(f"שגיאה: {e}")
         
-        loop.run_until_complete(async_send())
-        loop.close()
+        try:
+            loop.run_until_complete(async_send())
+        except Exception as e:
+            self.log(f"שגיאה ב-thread: {e}")
+        finally:
+            loop.close()
 
     def login(self):
         code = self.root.ids.code.text
         phone = self.root.ids.phone.text
         if not code:
-            self.log("אנא הזן את הקוד שקיבלת.")
+            self.log("הזן את הקוד שקיבלת")
             return
         threading.Thread(target=self._login_thread, args=(phone, code), daemon=True).start()
 
@@ -174,22 +206,30 @@ class TelegramBackupApp(MDApp):
         async def async_login():
             try:
                 if not self.client.is_connected():
-                     await self.client.connect()
+                    await self.client.connect()
                      
                 await self.client.sign_in(phone, code)
                 self.log("התחברת בהצלחה!")
-                self.root.ids.start_btn.disabled = False
+                
+                from kivy.clock import Clock
+                def enable_backup(dt):
+                    self.root.ids.start_btn.disabled = False
+                Clock.schedule_once(enable_backup)
             except Exception as e:
                 self.log(f"שגיאה בהתחברות: {e}")
 
-        loop.run_until_complete(async_login())
-        loop.close()
+        try:
+            loop.run_until_complete(async_login())
+        except Exception as e:
+            self.log(f"שגיאה: {e}")
+        finally:
+            loop.close()
 
     def start_backup(self):
         source = self.root.ids.source_channel.text
         target = self.root.ids.target_channel.text
         if not source or not target:
-            self.log("אנא הזן ערוץ מקור וערוץ יעד.")
+            self.log("הזן ערוץ מקור ויעד")
             return
         
         threading.Thread(target=self._backup_thread, args=(source, target), daemon=True).start()
@@ -201,46 +241,54 @@ class TelegramBackupApp(MDApp):
         async def async_backup():
             try:
                 if not self.client.is_connected():
-                     await self.client.connect()
+                    await self.client.connect()
 
-                self.log("מתחיל בתהליך הגיבוי...")
+                self.log("מתחיל גיבוי...")
                 
-                # המרה למספרים אם צריך
                 try:
                     if source.lstrip('-').isdigit(): source = int(source)
                     if target.lstrip('-').isdigit(): target = int(target)
                 except: pass
 
                 try:
-                     s_entity = await self.client.get_entity(source)
-                     t_entity = await self.client.get_entity(target)
+                    s_entity = await self.client.get_entity(source)
+                    t_entity = await self.client.get_entity(target)
                 except Exception as e:
-                     self.log(f"לא מצליח למצוא את הערוצים. ודא שהצטרפת אליהם.\nשגיאה: {e}")
-                     return
+                    self.log(f"לא מצליח למצוא ערוצים: {e}")
+                    return
 
                 s_title = getattr(s_entity, 'title', str(source))
                 t_title = getattr(t_entity, 'title', str(target))
-                self.log(f"מעביר מ: {s_title}\nאל: {t_title}")
+                self.log(f"מ: {s_title} → {t_title}")
                 
-                # לוגיקה פשוטה להעברה - אפשר להרחיב ללוגיקה המלאה מהקוד המקורי
                 count = 0
-                async for message in self.client.iter_messages(s_entity, limit=20): # הגבלה ל-20 להדגמה
+                async for message in self.client.iter_messages(s_entity, limit=20):
                     if message:
                         try:
                             await self.client.send_message(t_entity, message)
                             count += 1
                             if count % 5 == 0:
-                                self.log(f"הועברו {count} הודעות...")
+                                self.log(f"הועברו {count} הודעות")
                         except Exception as inner_e:
                             self.log(f"שגיאה בהודעה {message.id}: {inner_e}")
                 
-                self.log(f"סיום סבב! הועברו {count} הודעות.")
+                self.log(f"סיום! {count} הודעות")
 
             except Exception as e:
-                self.log(f"שגיאה כללית בתהליך הגיבוי: {e}")
+                self.log(f"שגיאה: {e}")
 
-        loop.run_until_complete(async_backup())
-        loop.close()
+        try:
+            loop.run_until_complete(async_backup())
+        except Exception as e:
+            self.log(f"שגיאה: {e}")
+        finally:
+            loop.close()
+
+    def on_pause(self):
+        return True
+
+    def on_resume(self):
+        pass
 
 if __name__ == '__main__':
     TelegramBackupApp().run()
