@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Buildozer
+.buildozer/
+bin/
+*.apk
+
+# Logs
+*.log
+*.txt
+!requirements.txt
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+fix_recipe*.py
+build_docker.sh
+setup_buildozer.sh
+get-docker.sh
