@@ -9,7 +9,6 @@ from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
-from telethon import TelegramClient
 import sentry_sdk
 
 # Sentry - תופס crashes!
@@ -21,6 +20,8 @@ sentry_sdk.init(
 # הגדרת לוגים
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ⚠️ שים לב: Telethon לא נטען כאן! הוא ייטען רק כשצריך (lazy loading)
 
 KV = '''
 MDBoxLayout:
@@ -139,6 +140,22 @@ class TelegramBackupApp(MDApp):
 
         if not api_id or not api_hash or not phone:
             self.log("חסרים פרטים (API ID/HASH/Phone)")
+            return
+        
+        # 🔥 Lazy Loading: טעינת Telethon רק כאן!
+        try:
+            self.log("טוען Telethon...")
+            from telethon import TelegramClient
+            self.log("✅ Telethon נטען בהצלחה!")
+        except ImportError as e:
+            error_msg = f"❌ שגיאה: Telethon לא מותקן - {e}"
+            self.log(error_msg)
+            sentry_sdk.capture_exception(e)
+            return
+        except Exception as e:
+            error_msg = f"❌ שגיאה בטעינת Telethon: {e}"
+            self.log(error_msg)
+            sentry_sdk.capture_exception(e)
             return
         
         # שמירת הלוגיקה והלקוח ברמת האפליקציה
