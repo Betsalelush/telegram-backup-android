@@ -1,4 +1,4 @@
-name: Build APK from Colab Script
+name: Build APK (Colab Style)
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     steps:
     - name: Checkout code
@@ -20,37 +21,28 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install Jupyter and dependencies
-      run: |
-        pip install jupyter nbconvert
-    
-    - name: Convert notebook to script
-      run: |
-        jupyter nbconvert --to script build_apk_colab.ipynb
-    
     - name: Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq \
+          python3-pip \
           build-essential \
           git \
-          patch \
-          ffmpeg \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          zlib1g-dev \
+          zip \
+          unzip \
           openjdk-17-jdk \
           autoconf \
           libtool \
           pkg-config \
-          zip \
-          unzip
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          libtinfo5 \
+          cmake \
+          libffi-dev \
+          libssl-dev \
+          patch
+        echo "✅ System dependencies installed"
     
     - name: Set up Java
       uses: actions/setup-java@v4
@@ -58,19 +50,77 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
     
-    - name: Run Colab build script
+    - name: Install Buildozer
       run: |
-        python build_apk_colab.py
+        pip install -q buildozer cython==0.29.33
+        echo "✅ Buildozer installed"
+    
+    - name: Prepare build files
+      run: |
+        # Copy crash_test version (change to basic/kivymd/full if needed)
+        cp main_crash_test.py main.py
+        cp requirements_crash_test.txt requirements.txt
+        
+        # Create buildozer.spec
+        cat > buildozer.spec << 'EOF'
+        [app]
+        title = Crash Test
+        package.name = testcrashtest
+        package.domain = org.backup
+        source.dir = .
+        source.include_exts = py,png,jpg,kv,atlas
+        version = 1.0
+        requirements = python3,kivy==2.2.1,sentry-sdk==1.40.0,kivymd
+        orientation = portrait
+        fullscreen = 0
+        android.permissions = INTERNET,ACCESS_NETWORK_STATE
+        android.api = 31
+        android.minapi = 21
+        android.archs = arm64-v8a
+        android.accept_sdk_license = True
+        android.logcat_filters = *:S python:D kivy:D
+        [buildozer]
+        log_level = 2
+        warn_on_root = 0
+        EOF
+        
+        echo "✅ Build files prepared"
+        echo "📄 main.py:"
+        head -10 main.py
+        echo ""
+        echo "📦 requirements.txt:"
+        cat requirements.txt
+    
+    - name: Build APK
+      run: |
+        echo "🚀 Starting build..."
+        echo "⏰ This will take 15-20 minutes"
+        yes | buildozer -v android debug 2>&1 | tee build.log
     
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: telegram-backup-apk
         path: bin/*.apk
         retention-days: 30
     
-    - name: Show APK info
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 7
+    
+    - name: Show build result
+      if: always()
       run: |
-        echo "✅ APK נבנה בהצלחה!"
-        ls -lh bin/*.apk || echo "No APK found in bin/"
-        find . -name "*.apk" -type f
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "🎉 Build succeeded!"
+          ls -lh bin/*.apk
+        else
+          echo "❌ Build failed!"
+          echo "🔍 Last 50 lines of errors:"
+          tail -50 build.log | grep -i "error\|failed" || tail -50 build.log
+        fi
