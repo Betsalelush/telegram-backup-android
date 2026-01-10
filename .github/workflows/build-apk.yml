@@ -37,7 +37,6 @@ jobs:
           zlib1g-dev \
           libncurses5-dev \
           libncursesw5-dev \
-          libtinfo5 \
           cmake \
           libffi-dev \
           libssl-dev \
@@ -57,11 +56,9 @@ jobs:
     
     - name: Prepare build files
       run: |
-        # Copy crash_test version (change to basic/kivymd/full if needed)
         cp main_crash_test.py main.py
         cp requirements_crash_test.txt requirements.txt
         
-        # Create buildozer.spec
         cat > buildozer.spec << 'EOF'
         [app]
         title = Crash Test
