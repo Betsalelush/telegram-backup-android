@@ -134,6 +134,26 @@ MDBoxLayout:
                     size: "48dp", "48dp"
                     pos_hint: {"center_y": .5}
                     on_release: app.paste_to_field('code')
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: two_fa_password
+                    hint_text: "2FA Password (if enabled)"
+                    mode: "rectangle"
+                    password: True
+                    disabled: True
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('two_fa_password')
 
             MDFillRoundFlatButton:
                 id: login_btn
@@ -419,6 +439,7 @@ class TelegramBackupApp(MDApp):
         self.theme_cls.theme_style = "Light"
         self.client = None
         self.phone = None
+        self.needs_2fa = False  # Track if we're in 2FA mode
         
         # 🆕 Worker thread with persistent event loop
         self.worker_loop = None
@@ -770,6 +791,7 @@ class TelegramBackupApp(MDApp):
         try:
             self.log("Loading Telethon...")
             from telethon import TelegramClient
+            from telethon.errors import SessionPasswordNeededError
             self.log("✅ Telethon loaded successfully!")
         except ImportError as e:
             self.log(f"❌ ERROR: Telethon not installed - {e}")
@@ -840,26 +862,58 @@ class TelegramBackupApp(MDApp):
 
     def login(self):
         code = self.root.ids.code.text
+        password = self.root.ids.two_fa_password.text
         phone = self.root.ids.phone.text
-        if not code:
+        
+        if not code and not self.needs_2fa:
             self.log("ERROR: Please enter the code you received.")
             return
+        
+        if self.needs_2fa and not password:
+            self.log("ERROR: Please enter your 2FA password.")
+            return
+        
         self.log("Logging in...")
         self.update_status("Logging in...", "Custom")
+        
         # Use worker thread instead of creating new thread
         async def async_login():
             try:
+                # Import here to have access in this scope
+                from telethon.errors import SessionPasswordNeededError
+                
                 if not self.client.is_connected():
                      await self.client.connect()
-                     
-                await self.client.sign_in(phone, code)
-                self.log("✅ Logged in successfully!")
+                
+                if self.needs_2fa:
+                    # Sign in with 2FA password
+                    await self.client.sign_in(password=password)
+                    self.log("✅ Logged in successfully with 2FA!")
+                else:
+                    # Normal sign in with code
+                    await self.client.sign_in(phone, code)
+                    self.log("✅ Logged in successfully!")
+                
                 self.update_status("Logged in successfully", "Primary")
                 
                 from kivy.clock import Clock
                 def enable_backup(dt):
                     self.root.ids.start_btn.disabled = False
                 Clock.schedule_once(enable_backup)
+                
+            except SessionPasswordNeededError:
+                # 2FA is required!
+                self.log("⚠️ Two-steps verification is enabled and a password is required (caused by SignInRequest)")
+                self.log("Please enter your 2FA password in the field below and click 'Login'.")
+                self.update_status("2FA password required", "Custom")
+                
+                # Enable 2FA password field
+                from kivy.clock import Clock
+                def enable_2fa_field(dt):
+                    self.root.ids.two_fa_password.disabled = False
+                    self.needs_2fa = True
+                Clock.schedule_once(enable_2fa_field)
+                
             except Exception as e:
                 error_msg = f"ERROR logging in: {e}"
                 self.log(error_msg)
