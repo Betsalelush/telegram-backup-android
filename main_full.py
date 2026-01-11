@@ -13,17 +13,10 @@ from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
-import sentry_sdk
 
-# Sentry - תופס crashes!
-sentry_sdk.init(
-    dsn="https://1f490b846ede82cfc3d5f6f5eb23263b@o4510215210598400.ingest.de.sentry.io/4510674676744272",
-    traces_sample_rate=1.0,
-)
+# Import enhanced Sentry logger
+from sentry_logger import logger, add_breadcrumb, set_user_context, set_transfer_context, capture_exception
 
-# הגדרת לוגים
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # ⚠️ שים לב: Telethon לא נטען כאן! הוא ייטען רק כשצריך (lazy loading)
 
