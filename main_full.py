@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import threading
+import time
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.button import MDFillRoundFlatButton
@@ -103,6 +104,7 @@ MDBoxLayout:
                 mode: "rectangle"
                 text: "0"
             
+            
             MDLabel:
                 text: "Select message types to transfer:"
                 halign: "left"
@@ -177,6 +179,69 @@ MDBoxLayout:
                     text: "Documents"
                     size_hint_y: None
                     height: "48dp"
+            
+            MDSeparator:
+                height: "1dp"
+            
+            MDLabel:
+                text: "Transfer Method:"
+                halign: "left"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+                font_style: "Subtitle1"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "40dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: method_download_upload
+                    group: "transfer_method"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    active: True
+                
+                MDLabel:
+                    text: "Download & Upload (No Credit)"
+                    size_hint_y: None
+                    height: "40dp"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "40dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: method_send_message
+                    group: "transfer_method"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                
+                MDLabel:
+                    text: "Send Message (No Credit)"
+                    size_hint_y: None
+                    height: "40dp"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "40dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: method_forward
+                    group: "transfer_method"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                
+                MDLabel:
+                    text: "Forward (With Credit)"
+                    size_hint_y: None
+                    height: "40dp"
 
             MDFillRoundFlatButton:
                 id: start_btn
@@ -184,6 +249,67 @@ MDBoxLayout:
                 pos_hint: {"center_x": .5}
                 disabled: True
                 on_release: app.start_backup()
+            
+            MDFillRoundFlatButton:
+                id: stop_btn
+                text: "Stop Backup"
+                pos_hint: {"center_x": .5}
+                disabled: True
+                md_bg_color: 0.8, 0.2, 0.2, 1
+                on_release: app.stop_backup()
+            
+            MDSeparator:
+                height: "1dp"
+            
+            MDLabel:
+                text: "📊 Progress"
+                halign: "left"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+                font_style: "Subtitle1"
+            
+            MDProgressBar:
+                id: progress_bar
+                size_hint_y: None
+                height: "10dp"
+                value: 0
+                max: 100
+            
+            MDLabel:
+                id: progress_text
+                text: "Progress: 0/0 messages (0%)"
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+            
+            MDLabel:
+                id: speed_text
+                text: "Speed: 0 msg/s | ETA: --:--"
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+            
+            MDLabel:
+                id: current_status
+                text: "Status: Ready"
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+            
+            MDSeparator:
+                height: "1dp"
+            
+            MDLabel:
+                text: "📝 Log"
+                halign: "left"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+                font_style: "Subtitle1"
 
             MDLabel:
                 id: status_log
@@ -210,6 +336,13 @@ class TelegramBackupApp(MDApp):
         self.messages_per_minute = 0
         self.max_messages_per_minute = 20
         self.minute_start_time = None
+        
+        # 📊 מעקב התקדמות (גרסה 2.4)
+        self.total_messages = 0
+        self.processed_messages = 0
+        self.start_time = None
+        self.messages_per_second = 0
+        self.backup_running = False
         
         # תיקון Android: שימוש בתיקיית האפליקציה לקבצי Session
         try:
@@ -323,6 +456,113 @@ class TelegramBackupApp(MDApp):
         else:
             return random.uniform(3, 5)  # Slow
     
+    async def get_total_messages(self, entity):
+        """Get total message count in channel"""
+        try:
+            # Use get_messages with limit=0 to get count
+            messages = await self.client.get_messages(entity, limit=0)
+            return messages.total
+        except Exception as e:
+            logger.error(f"Error getting total messages: {e}")
+            return 0
+    
+    def update_progress(self):
+        """Update progress bar and labels"""
+        def update_ui(dt):
+            if self.total_messages > 0:
+                percentage = (self.processed_messages / self.total_messages) * 100
+                self.root.ids.progress_bar.value = percentage
+                
+                # Update progress text
+                progress_text = f"Progress: {self.processed_messages}/{self.total_messages} messages ({percentage:.1f}%)"
+                self.root.ids.progress_text.text = progress_text
+                
+                # Calculate speed and ETA
+                if self.start_time:
+                    elapsed = time.time() - self.start_time
+                    if elapsed > 0:
+                        self.messages_per_second = self.processed_messages / elapsed
+                        remaining = self.total_messages - self.processed_messages
+                        eta_seconds = remaining / self.messages_per_second if self.messages_per_second > 0 else 0
+                        eta_str = time.strftime("%H:%M:%S", time.gmtime(eta_seconds))
+                        
+                        speed_text = f"Speed: {self.messages_per_second:.2f} msg/s | ETA: {eta_str}"
+                        self.root.ids.speed_text.text = speed_text
+        
+        from kivy.clock import Clock
+        Clock.schedule_once(update_ui)
+    
+    def update_status(self, status, color="Primary"):
+        """Update current status label"""
+        def update_ui(dt):
+            self.root.ids.current_status.text = f"Status: {status}"
+            self.root.ids.current_status.theme_text_color = color
+        
+        from kivy.clock import Clock
+        Clock.schedule_once(update_ui)
+    
+    def get_transfer_method(self):
+        """Get selected transfer method"""
+        if self.root.ids.method_download_upload.active:
+            return "download_upload"
+        elif self.root.ids.method_send_message.active:
+            return "send_message"
+        elif self.root.ids.method_forward.active:
+            return "forward"
+        return "download_upload"  # default
+    
+
+    
+    def stop_backup(self):
+        """Stop the backup process"""
+        self.backup_running = False
+        self.log("⛔ Backup stopped by user")
+        self.update_status("Stopped", "Error")
+        
+        def update_ui(dt):
+            self.root.ids.stop_btn.disabled = True
+            self.root.ids.start_btn.disabled = False
+        
+        from kivy.clock import Clock
+        Clock.schedule_once(update_ui)
+    
+    async def transfer_message(self, message, source_entity, target_entity, method):
+        """Transfer message using selected method"""
+        
+        if method == "download_upload":
+            # Current implementation - download and upload
+            if message.media:
+                self.update_status("Downloading media...", "Custom")
+                file = await self.client.download_media(message.media, file=bytes)
+                
+                if file:
+                    self.update_status("Uploading to target...", "Custom")
+                    await self.client.send_file(
+                        target_entity,
+                        file,
+                        caption=message.text if message.text else ''
+                    )
+                else:
+                    raise Exception("Failed to download media")
+            elif message.text:
+                await self.client.send_message(target_entity, message.text)
+        
+        elif method == "send_message":
+            # Forward without credit using send_message
+            self.update_status("Sending message...", "Custom")
+            await self.client.send_message(
+                target_entity,
+                message=message
+            )
+        
+        elif method == "forward":
+            # Forward with credit
+            self.update_status("Forwarding with credit...", "Custom")
+            await self.client.forward_messages(
+                target_entity,
+                message,
+                source_entity
+            )
 
     def log(self, message):
         def update_ui(dt):
@@ -512,6 +752,26 @@ class TelegramBackupApp(MDApp):
                 # 🆕 טעינת התקדמות לזוג ערוצים זה
                 self.load_progress(s_id, t_id)
                 
+                # 🔧 קבלת שיטת העברה
+                transfer_method = self.get_transfer_method()
+                self.log(f"🔧 Transfer method: {transfer_method}")
+                
+                # 📊 ספירת סך ההודעות בערוץ
+                self.total_messages = await self.get_total_messages(s_entity)
+                self.processed_messages = 0
+                self.start_time = time.time()
+                self.backup_running = True
+                
+                self.log(f"📊 Total messages in channel: {self.total_messages}")
+                self.update_status("Starting backup...", "Primary")
+                
+                # הפעלת כפתור Stop
+                from kivy.clock import Clock
+                def enable_stop(dt):
+                    self.root.ids.stop_btn.disabled = False
+                    self.root.ids.start_btn.disabled = True
+                Clock.schedule_once(enable_stop)
+                
                 # 🆕 שמירת התקדמות + המתנה חכמה
                 count = 0
                 skipped = 0
@@ -522,6 +782,11 @@ class TelegramBackupApp(MDApp):
                     self.log(f"🎯 Starting from message ID: {offset_id}")
                 
                 async for message in self.client.iter_messages(s_entity, limit=None, offset_id=offset_id):
+                    # בדיקה אם המשתמש עצר את הגיבוי
+                    if not self.backup_running:
+                        self.log("⛔ Backup stopped")
+                        break
+                    
                     if message and message.id:
                         # בדיקה אם כבר שלחנו את ההודעה
                         if message.id in self.sent_message_ids:
@@ -558,35 +823,19 @@ class TelegramBackupApp(MDApp):
                             # 🔥 בדיקת הגבלת קצב לפני שליחה
                             await self.check_rate_limit()
                             
-                            # 🔥 הורדה והעלאה ללא קרדיט!
-                            if message.media:
-                                # יש מדיה - הורד והעלה
-                                self.log(f"📥 Downloading {message_type} from message {message.id}...")
-                                file = await self.client.download_media(message.media, file=bytes)
-                                
-                                if file:
-                                    self.log(f"📤 Uploading to target...")
-                                    await self.client.send_file(
-                                        t_entity,
-                                        file,
-                                        caption=message.text if message.text else ''
-                                    )
-                                else:
-                                    self.log(f"⚠️ Failed to download media from message {message.id}")
-                                    continue
-                            elif message.text:
-                                # טקסט בלבד
-                                await self.client.send_message(t_entity, message.text)
-                            else:
-                                # הודעה ריקה - דלג
-                                self.log(f"⏩ Skipping empty message {message.id}")
-                                continue
+                            # 🚀 העברת הודעה לפי השיטה הנבחרת
+                            await self.transfer_message(message, s_entity, t_entity, transfer_method)
                             
                             count += 1
                             self.consecutive_successes += 1
                             
                             # 📊 עדכון מונה הודעות לדקה
                             self.messages_per_minute += 1
+                            
+                            # 📊 עדכון התקדמות
+                            self.processed_messages += 1
+                            self.update_progress()
+                            
                             self.log(f"📊 Rate: {self.messages_per_minute}/{self.max_messages_per_minute} messages this minute")
                             
                             # שמירת ההודעה כנשלחה
@@ -618,8 +867,20 @@ class TelegramBackupApp(MDApp):
                 # שמירה סופית
                 self.save_progress(s_id, t_id)
                 
-                self.log(f"🎉 Backup completed!")
-                self.log(f"📊 Sent: {count}, Skipped: {skipped}")
+                # עדכון סטטוס סיום
+                if self.backup_running:
+                    self.update_status("Completed", "Primary")
+                    self.log(f"🎉 Backup completed!")
+                    self.log(f"📊 Sent: {count}, Skipped: {skipped}")
+                else:
+                    self.update_status("Stopped by user", "Error")
+                
+                # החזרת כפתורים למצב רגיל
+                from kivy.clock import Clock
+                def reset_buttons(dt):
+                    self.root.ids.stop_btn.disabled = True
+                    self.root.ids.start_btn.disabled = False
+                Clock.schedule_once(reset_buttons)
 
             except Exception as e:
                 error_msg = f"General backup error: {e}"
