@@ -1,4 +1,5 @@
 kivy==2.2.1
 kivymd
 telethon
+pyaes
 sentry-sdk==1.40.0
