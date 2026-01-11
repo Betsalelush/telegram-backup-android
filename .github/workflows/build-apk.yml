@@ -47,7 +47,9 @@ jobs:
           unzip \
           openjdk-17-jdk \
           autoconf \
+          automake \
           libtool \
+          m4 \
           pkg-config \
           zlib1g-dev \
           libncurses5-dev \
