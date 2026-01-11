@@ -118,17 +118,70 @@ class TelegramBackupApp(MDApp):
         self.client = None
         self.phone = None
         
+        # 🆕 שמירת התקדמות
+        self.sent_message_ids = set()
+        self.last_processed_message_id = 0
+        self.consecutive_successes = 0
+        
         # תיקון Android: שימוש בתיקיית האפליקציה לקבצי Session
         try:
             from android.storage import app_storage_path
             self.session_dir = app_storage_path()
-            logger.info(f"Android: שימוש בתיקייה {self.session_dir}")
+            logger.info(f"Android: Using directory {self.session_dir}")
         except ImportError:
             # לא Android - שימוש בתיקייה הנוכחית
             self.session_dir = os.getcwd()
-            logger.info(f"Desktop: שימוש בתיקייה {self.session_dir}")
+            logger.info(f"Desktop: Using directory {self.session_dir}")
+        
+        # טעינת התקדמות קודמת
+        self.load_progress()
         
         return Builder.load_string(KV)
+    
+    def load_progress(self):
+        """Load progress from JSON file"""
+        progress_file = os.path.join(self.session_dir, 'progress.json')
+        if os.path.exists(progress_file):
+            try:
+                with open(progress_file, 'r', encoding='utf-8') as f:
+                    progress = json.load(f)
+                self.sent_message_ids = set(progress.get('sent_message_ids', []))
+                self.last_processed_message_id = progress.get('last_message_id', 0)
+                self.log(f"✅ Loaded progress: {len(self.sent_message_ids)} messages sent, last ID: {self.last_processed_message_id}")
+            except Exception as e:
+                self.log(f"⚠️ Error loading progress: {e}")
+                logger.error(f"Error loading progress: {e}")
+    
+    def save_progress(self):
+        """Save progress to JSON file"""
+        progress_file = os.path.join(self.session_dir, 'progress.json')
+        try:
+            # Limit size if too large
+            if len(self.sent_message_ids) > 10000:
+                temp_list = list(self.sent_message_ids)
+                import random
+                random.shuffle(temp_list)
+                self.sent_message_ids = set(temp_list[:10000])
+            
+            progress_data = {
+                'sent_message_ids': list(self.sent_message_ids),
+                'last_message_id': self.last_processed_message_id
+            }
+            with open(progress_file, 'w', encoding='utf-8') as f:
+                json.dump(progress_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"💾 Progress saved: {len(self.sent_message_ids)} messages")
+        except Exception as e:
+            logger.error(f"❌ Error saving progress: {e}")
+    
+    def smart_delay(self):
+        """Smart delay based on consecutive successes"""
+        if self.consecutive_successes > 10:
+            return random.uniform(1, 2)  # Fast
+        elif self.consecutive_successes > 5:
+            return random.uniform(2, 4)  # Medium
+        else:
+            return random.uniform(3, 5)  # Slow
+    
 
     def log(self, message):
         def update_ui(dt):
@@ -287,39 +340,63 @@ class TelegramBackupApp(MDApp):
                      s_entity = await self.client.get_entity(source)
                      t_entity = await self.client.get_entity(target)
                 except Exception as e:
-                     error_msg = f"Cannot find channels. Make sure you joined them.\\nError: {e}"
+                     error_msg = f"Cannot find channels. Make sure you joined them.\nError: {e}"
                      self.log(error_msg)
                      sentry_sdk.capture_exception(e)
                      return
 
                 s_title = getattr(s_entity, 'title', str(source))
                 t_title = getattr(t_entity, 'title', str(target))
-                self.log(f"Transferring from: {s_title}\\nTo: {t_title}")
+                self.log(f"Transferring from: {s_title}\nTo: {t_title}")
                 
-                # ⚠️ מנגנון המתנה קריטי! למניעת חסימה מטלגרם
+                # 🆕 שמירת התקדמות + המתנה חכמה
                 count = 0
-                DELAY_SECONDS = 3  # 3 שניות בין הודעות - בטוח!
+                skipped = 0
                 
-                async for message in self.client.iter_messages(s_entity, limit=20):
-                    if message:
+                async for message in self.client.iter_messages(s_entity, limit=100):
+                    if message and message.id:
+                        # בדיקה אם כבר שלחנו את ההודעה
+                        if message.id in self.sent_message_ids:
+                            skipped += 1
+                            continue
+                        
                         try:
+                            # 🔥 טיפול ב-FloodWait
                             await self.client.send_message(t_entity, message)
                             count += 1
+                            self.consecutive_successes += 1
                             
-                            # המתנה בין הודעות - קריטי!
-                            if count < 20:  # לא להמתין אחרי ההודעה האחרונה
-                                self.log(f"Transferred {count} messages. Waiting {DELAY_SECONDS}s...")
-                                await asyncio.sleep(DELAY_SECONDS)
+                            # שמירת ההודעה כנשלחה
+                            self.sent_message_ids.add(message.id)
+                            self.last_processed_message_id = message.id
                             
-                            if count % 5 == 0:
-                                self.log(f"Progress: {count} messages transferred")
+                            # שמירת התקדמות כל 10 הודעות
+                            if count % 10 == 0:
+                                self.save_progress()
+                            
+                            # 🎲 המתנה חכמה - אקראית!
+                            delay = self.smart_delay()
+                            self.log(f"✅ {count} sent, {skipped} skipped. Waiting {delay:.1f}s...")
+                            await asyncio.sleep(delay)
+                            
+                        except errors.FloodWaitError as e:
+                            # 🔥 טיפול ב-FloodWait
+                            wait_time = e.seconds + random.uniform(2, 5)
+                            self.log(f"⏰ FloodWait! Waiting {wait_time:.0f}s...")
+                            self.consecutive_successes = 0  # איפוס
+                            await asyncio.sleep(wait_time)
+                            
                         except Exception as inner_e:
-                            self.log(f"Error in message {message.id}: {inner_e}")
-                            # המתנה גם במקרה של שגיאה
-                            await asyncio.sleep(DELAY_SECONDS)
+                            self.log(f"❌ Error in message {message.id}: {inner_e}")
+                            self.consecutive_successes = 0  # איפוס
+                            sentry_sdk.capture_exception(inner_e)
+                            await asyncio.sleep(self.smart_delay())
                 
-                self.log(f"Backup completed! Transferred {count} messages.")
-                self.log(f"Total time: ~{count * DELAY_SECONDS} seconds")
+                # שמירה סופית
+                self.save_progress()
+                
+                self.log(f"🎉 Backup completed!")
+                self.log(f"📊 Sent: {count}, Skipped: {skipped}")
 
             except Exception as e:
                 error_msg = f"General backup error: {e}"
