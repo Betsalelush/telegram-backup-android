@@ -30,7 +30,7 @@ MDBoxLayout:
     spacing: 10
 
     MDLabel:
-        text: "גיבוי טלגרם"
+        text: "Telegram Backup"
         halign: "center"
         font_style: "H5"
         size_hint_y: None
@@ -44,6 +44,14 @@ MDBoxLayout:
             spacing: 15
             padding: 10
             
+            MDLabel:
+                text: "Get API credentials from: my.telegram.org"
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+                font_style: "Caption"
+            
             MDTextField:
                 id: api_id
                 hint_text: "API ID"
@@ -56,47 +64,47 @@ MDBoxLayout:
 
             MDTextField:
                 id: phone
-                hint_text: "מספר טלפון (+972...)"
+                hint_text: "Phone Number (+972...)"
                 mode: "rectangle"
 
             MDFillRoundFlatButton:
-                text: "שלח קוד אימות"
+                text: "Send Verification Code"
                 pos_hint: {"center_x": .5}
                 on_release: app.send_code()
 
             MDTextField:
                 id: code
-                hint_text: "קוד אימות"
+                hint_text: "Verification Code"
                 mode: "rectangle"
                 disabled: True
 
             MDFillRoundFlatButton:
                 id: login_btn
-                text: "התחבר"
+                text: "Login"
                 pos_hint: {"center_x": .5}
                 disabled: True
                 on_release: app.login()
 
             MDTextField:
                 id: source_channel
-                hint_text: "ערוץ מקור (ID או Link)"
+                hint_text: "Source Channel (ID or Link)"
                 mode: "rectangle"
 
             MDTextField:
                 id: target_channel
-                hint_text: "ערוץ יעד (ID או Link)"
+                hint_text: "Target Channel (ID or Link)"
                 mode: "rectangle"
 
             MDFillRoundFlatButton:
                 id: start_btn
-                text: "התחל גיבוי"
+                text: "Start Backup"
                 pos_hint: {"center_x": .5}
                 disabled: True
                 on_release: app.start_backup()
 
             MDLabel:
                 id: status_log
-                text: "מוכן...\\n"
+                text: "Ready...\\n"
                 halign: "left"
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -267,7 +275,7 @@ class TelegramBackupApp(MDApp):
                 if not self.client.is_connected():
                      await self.client.connect()
 
-                self.log("מתחיל בתהליך הגיבוי...")
+                self.log("Starting backup process...")
                 
                 # המרה למספרים אם צריך
                 try:
@@ -279,31 +287,42 @@ class TelegramBackupApp(MDApp):
                      s_entity = await self.client.get_entity(source)
                      t_entity = await self.client.get_entity(target)
                 except Exception as e:
-                     error_msg = f"לא מצליח למצוא את הערוצים. ודא שהצטרפת אליהם.\\nשגיאה: {e}"
+                     error_msg = f"Cannot find channels. Make sure you joined them.\\nError: {e}"
                      self.log(error_msg)
                      sentry_sdk.capture_exception(e)
                      return
 
                 s_title = getattr(s_entity, 'title', str(source))
                 t_title = getattr(t_entity, 'title', str(target))
-                self.log(f"מעביר מ: {s_title}\\nאל: {t_title}")
+                self.log(f"Transferring from: {s_title}\\nTo: {t_title}")
                 
-                # לוגיקה פשוטה להעברה
+                # ⚠️ מנגנון המתנה קריטי! למניעת חסימה מטלגרם
                 count = 0
+                DELAY_SECONDS = 3  # 3 שניות בין הודעות - בטוח!
+                
                 async for message in self.client.iter_messages(s_entity, limit=20):
                     if message:
                         try:
                             await self.client.send_message(t_entity, message)
                             count += 1
+                            
+                            # המתנה בין הודעות - קריטי!
+                            if count < 20:  # לא להמתין אחרי ההודעה האחרונה
+                                self.log(f"Transferred {count} messages. Waiting {DELAY_SECONDS}s...")
+                                await asyncio.sleep(DELAY_SECONDS)
+                            
                             if count % 5 == 0:
-                                self.log(f"הועברו {count} הודעות...")
+                                self.log(f"Progress: {count} messages transferred")
                         except Exception as inner_e:
-                            self.log(f"שגיאה בהודעה {message.id}: {inner_e}")
+                            self.log(f"Error in message {message.id}: {inner_e}")
+                            # המתנה גם במקרה של שגיאה
+                            await asyncio.sleep(DELAY_SECONDS)
                 
-                self.log(f"סיום סבב! הועברו {count} הודעות.")
+                self.log(f"Backup completed! Transferred {count} messages.")
+                self.log(f"Total time: ~{count * DELAY_SECONDS} seconds")
 
             except Exception as e:
-                error_msg = f"שגיאה כללית בתהליך הגיבוי: {e}"
+                error_msg = f"General backup error: {e}"
                 self.log(error_msg)
                 sentry_sdk.capture_exception(e)
 
