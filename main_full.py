@@ -161,6 +161,14 @@ MDBoxLayout:
                 pos_hint: {"center_x": .5}
                 disabled: True
                 on_release: app.login()
+            
+            MDLabel:
+                id: connection_status
+                text: "Status: Not connected"
+                halign: "center"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Error"
 
             MDBoxLayout:
                 orientation: 'horizontal'
@@ -279,7 +287,7 @@ MDBoxLayout:
             MDBoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: None
-                height: "48dp"
+                height: "40dp"
                 spacing: 10
                 
                 MDCheckbox:
@@ -289,7 +297,7 @@ MDBoxLayout:
                     active: True
                 
                 MDLabel:
-                    text: "Documents"
+                    text: "Documents (All Files)"
                     size_hint_y: None
                     height: "48dp"
             
@@ -375,7 +383,7 @@ MDBoxLayout:
                 height: "1dp"
             
             MDLabel:
-                text: "📊 Progress"
+                text: "Progress"
                 halign: "left"
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -417,7 +425,7 @@ MDBoxLayout:
                 height: "1dp"
             
             MDLabel:
-                text: "📝 Log"
+                text: "Log"
                 halign: "left"
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -441,23 +449,23 @@ class TelegramBackupApp(MDApp):
         self.phone = None
         self.needs_2fa = False  # Track if we're in 2FA mode
         
-        # 🆕 Worker thread with persistent event loop
+        # Worker thread with persistent event loop
         self.worker_loop = None
         self.worker_thread = None
         self.task_queue = queue.Queue()
         self._start_worker_thread()
         
-        # 🆕 שמירת התקדמות
+        # שמירת התקדמות
         self.sent_message_ids = set()
         self.last_processed_message_id = 0
         self.consecutive_successes = 0
         
-        # 🔥 מונה הודעות לדקה (מניעת חסימה)
+        # מונה הודעות לדקה (מניעת חסימה)
         self.messages_per_minute = 0
         self.max_messages_per_minute = 20
         self.minute_start_time = None
         
-        # 📊 מעקב התקדמות (גרסה 2.4)
+        # מעקב התקדמות (גרסה 2.4)
         self.total_messages = 0
         self.processed_messages = 0
         self.start_time = None
@@ -535,9 +543,9 @@ class TelegramBackupApp(MDApp):
         self.last_processed_message_id = channel_progress.get('last_message_id', 0)
         
         if self.sent_message_ids:
-            self.log(f"✅ Loaded progress for {key}: {len(self.sent_message_ids)} messages sent")
+            self.log(f"Loaded progress for {key}: {len(self.sent_message_ids)} messages sent")
         else:
-            self.log(f"📝 Starting fresh for {key}")
+            self.log(f"Starting fresh for {key}")
     
     def save_progress(self, source_id, target_id):
         """Save progress for specific channel pair"""
@@ -570,9 +578,9 @@ class TelegramBackupApp(MDApp):
         try:
             with open(progress_file, 'w', encoding='utf-8') as f:
                 json.dump(all_progress, f, ensure_ascii=False, indent=2)
-            logger.info(f"💾 Progress saved for {key}: {len(self.sent_message_ids)} messages")
+            logger.info(f"Progress saved for {key}: {len(self.sent_message_ids)} messages")
         except Exception as e:
-            logger.error(f"❌ Error saving progress: {e}")
+            logger.error(f"Error saving progress: {e}")
     
     async def check_rate_limit(self):
         """Check and manage rate limits (20 messages/minute)"""
@@ -587,13 +595,13 @@ class TelegramBackupApp(MDApp):
             # איפוס מונה
             self.messages_per_minute = 0
             self.minute_start_time = datetime.now()
-            self.log(f"📊 Rate limit reset: 0/{self.max_messages_per_minute} messages this minute")
+            self.log(f"Rate limit reset: 0/{self.max_messages_per_minute} messages this minute")
         
         # בדוק אם עברנו את הגבול
         if self.messages_per_minute >= self.max_messages_per_minute:
             wait_time = 60 - elapsed.total_seconds()
             if wait_time > 0:
-                self.log(f"⚠️ Rate limit reached! Waiting {int(wait_time)}s...")
+                self.log(f"Rate limit reached! Waiting {int(wait_time)}s...")
                 await asyncio.sleep(wait_time)
                 # איפוס אחרי המתנה
                 self.messages_per_minute = 0
@@ -668,7 +676,7 @@ class TelegramBackupApp(MDApp):
     def stop_backup(self):
         """Stop the backup process"""
         self.backup_running = False
-        self.log("⛔ Backup stopped by user")
+        self.log("Backup stopped by user")
         self.update_status("Stopped", "Error")
         
         def update_ui(dt):
@@ -787,19 +795,19 @@ class TelegramBackupApp(MDApp):
             self.root.ids.send_code_btn.disabled = True
         Clock.schedule_once(disable_send_btn)
         
-        # 🔥 Lazy Loading: Load Telethon only here!
+        # Lazy Loading: Load Telethon only here!
         try:
             self.log("Loading Telethon...")
             from telethon import TelegramClient
             from telethon.errors import SessionPasswordNeededError
-            self.log("✅ Telethon loaded successfully!")
+            self.log("Telethon loaded successfully!")
         except ImportError as e:
-            self.log(f"❌ ERROR: Telethon not installed - {e}")
+            self.log(f"ERROR: Telethon not installed - {e}")
             self.update_status("Error loading Telethon", "Error")
             sentry_sdk.capture_exception(e)
             return
         except Exception as e:
-            error_msg = f"❌ Error loading Telethon: {e}"
+            error_msg = f"Error loading Telethon: {e}"
             self.log(error_msg)
             sentry_sdk.capture_exception(e)
             return
@@ -829,7 +837,7 @@ class TelegramBackupApp(MDApp):
                     self.log("Requesting verification code...")
                     self.update_status("Requesting code...", "Custom")
                     await self.client.send_code_request(phone)
-                    self.log("✅ Code sent! Please enter it in the field below and click 'Login'.")
+                    self.log("Code sent! Please enter it in the field below and click 'Login'.")
                     self.update_status("Code sent successfully!", "Primary")
                     
                     # Enable code field and login button
@@ -844,6 +852,8 @@ class TelegramBackupApp(MDApp):
                     from kivy.clock import Clock
                     def enable_backup(dt):
                         self.root.ids.start_btn.disabled = False
+                        self.root.ids.connection_status.text = "Status: Connected"
+                        self.root.ids.connection_status.theme_text_color = "Primary"
                     Clock.schedule_once(enable_backup)
             except Exception as e:
                 error_msg = f"ERROR sending code: {e}"
@@ -888,22 +898,25 @@ class TelegramBackupApp(MDApp):
                 if self.needs_2fa:
                     # Sign in with 2FA password
                     await self.client.sign_in(password=password)
-                    self.log("✅ Logged in successfully with 2FA!")
+                    self.log("Logged in successfully with 2FA!")
                 else:
                     # Normal sign in with code
                     await self.client.sign_in(phone, code)
-                    self.log("✅ Logged in successfully!")
+                    self.log("Logged in successfully!")
                 
                 self.update_status("Logged in successfully", "Primary")
                 
                 from kivy.clock import Clock
                 def enable_backup(dt):
                     self.root.ids.start_btn.disabled = False
+                    # Update connection status
+                    self.root.ids.connection_status.text = "Status: Connected"
+                    self.root.ids.connection_status.theme_text_color = "Primary"
                 Clock.schedule_once(enable_backup)
                 
             except SessionPasswordNeededError:
                 # 2FA is required!
-                self.log("⚠️ Two-steps verification is enabled and a password is required (caused by SignInRequest)")
+                self.log("Two-steps verification is enabled and a password is required (caused by SignInRequest)")
                 self.log("Please enter your 2FA password in the field below and click 'Login'.")
                 self.update_status("2FA password required", "Custom")
                 
@@ -930,7 +943,7 @@ class TelegramBackupApp(MDApp):
             self.log("Please enter source and target channels.")
             return
         
-        # 🆕 קריאת הגדרות מה-UI
+        # קריאת הגדרות מה-UI
         try:
             start_id = int(self.root.ids.start_message_id.text or "0")
         except ValueError:
@@ -944,7 +957,7 @@ class TelegramBackupApp(MDApp):
             'documents': self.root.ids.cb_documents.active
         }
         
-        self.log(f"🎯 Settings: Start ID={start_id}, Types={file_types}")
+        self.log(f"Settings: Start ID={start_id}, Types={file_types}")
         
         threading.Thread(target=self._backup_thread, args=(source, target, start_id, file_types), daemon=True).start()
 
@@ -959,15 +972,20 @@ class TelegramBackupApp(MDApp):
 
                 self.log("Starting backup process...")
                 
-                # המרה למספרים אם צריך
+                # Convert to integers if needed (use new variables to avoid UnboundLocalError)
+                source_entity = source
+                target_entity = target
                 try:
-                    if source.lstrip('-').isdigit(): source = int(source)
-                    if target.lstrip('-').isdigit(): target = int(target)
-                except: pass
+                    if str(source).lstrip('-').isdigit(): 
+                        source_entity = int(source)
+                    if str(target).lstrip('-').isdigit(): 
+                        target_entity = int(target)
+                except: 
+                    pass
 
                 try:
-                     s_entity = await self.client.get_entity(source)
-                     t_entity = await self.client.get_entity(target)
+                     s_entity = await self.client.get_entity(source_entity)
+                     t_entity = await self.client.get_entity(target_entity)
                 except Exception as e:
                      error_msg = f"Cannot find channels. Make sure you joined them.\nError: {e}"
                      self.log(error_msg)
@@ -979,22 +997,22 @@ class TelegramBackupApp(MDApp):
                 s_id = s_entity.id
                 t_id = t_entity.id
                 
-                self.log(f"Transferring from: {s_title}\nTo: {t_title}")
+                self.log(f"Transferring from: {s_title} to {t_title}")
                 
-                # 🆕 טעינת התקדמות לזוג ערוצים זה
+                # טעינת התקדמות לזוג ערוצים זה
                 self.load_progress(s_id, t_id)
                 
-                # 🔧 קבלת שיטת העברה
+                # קבלת שיטת העברה
                 transfer_method = self.get_transfer_method()
-                self.log(f"🔧 Transfer method: {transfer_method}")
+                self.log(f"Transfer method: {transfer_method}")
                 
-                # 📊 ספירת סך ההודעות בערוץ
+                # ספירת סך ההודעות בערוץ
                 self.total_messages = await self.get_total_messages(s_entity)
                 self.processed_messages = 0
                 self.start_time = time.time()
                 self.backup_running = True
                 
-                self.log(f"📊 Total messages in channel: {self.total_messages}")
+                self.log(f"Total messages in channel: {self.total_messages}")
                 self.update_status("Starting backup...", "Primary")
                 
                 # הפעלת כפתור Stop
@@ -1004,19 +1022,19 @@ class TelegramBackupApp(MDApp):
                     self.root.ids.start_btn.disabled = True
                 Clock.schedule_once(enable_stop)
                 
-                # 🆕 שמירת התקדמות + המתנה חכמה
+                # שמירת התקדמות + המתנה חכמה
                 count = 0
                 skipped = 0
                 
-                # 🎯 שימוש ב-start_id אם צוין
+                # שימוש ב-start_id אם צוין
                 offset_id = start_id if start_id > 0 else 0
                 if offset_id > 0:
-                    self.log(f"🎯 Starting from message ID: {offset_id}")
+                    self.log(f"Starting from message ID: {offset_id}")
                 
                 async for message in self.client.iter_messages(s_entity, limit=None, offset_id=offset_id):
                     # בדיקה אם המשתמש עצר את הגיבוי
                     if not self.backup_running:
-                        self.log("⛔ Backup stopped")
+                        self.log("Backup stopped")
                         break
                     
                     if message and message.id:
@@ -1025,7 +1043,7 @@ class TelegramBackupApp(MDApp):
                             skipped += 1
                             continue
                         
-                        # 🔍 סינון סוגי קבצים
+                        # סינון סוגי קבצים
                         should_send = False
                         message_type = None
                         
@@ -1047,28 +1065,28 @@ class TelegramBackupApp(MDApp):
                             message_type = "other"
                         
                         if not should_send:
-                            self.log(f"⏩ Skipping {message_type} message {message.id} (filtered)")
+                            self.log(f"Skipping {message_type} message {message.id} (filtered)")
                             skipped += 1
                             continue
                         
                         try:
-                            # 🔥 בדיקת הגבלת קצב לפני שליחה
+                            # בדיקת הגבלת קצב לפני שליחה
                             await self.check_rate_limit()
                             
-                            # 🚀 העברת הודעה לפי השיטה הנבחרת
+                            # העברת הודעה לפי השיטה הנבחרת
                             await self.transfer_message(message, s_entity, t_entity, transfer_method)
                             
                             count += 1
                             self.consecutive_successes += 1
                             
-                            # 📊 עדכון מונה הודעות לדקה
+                            # עדכון מונה הודעות לדקה
                             self.messages_per_minute += 1
                             
-                            # 📊 עדכון התקדמות
+                            # עדכון התקדמות
                             self.processed_messages += 1
                             self.update_progress()
                             
-                            self.log(f"📊 Rate: {self.messages_per_minute}/{self.max_messages_per_minute} messages this minute")
+                            self.log(f"Rate: {self.messages_per_minute}/{self.max_messages_per_minute} messages this minute")
                             
                             # שמירת ההודעה כנשלחה
                             self.sent_message_ids.add(message.id)
@@ -1078,32 +1096,32 @@ class TelegramBackupApp(MDApp):
                             if count % 10 == 0:
                                 self.save_progress(s_id, t_id)
                             
-                            # 🎲 המתנה חכמה - אקראית!
+                            # Smart delay - random!
                             delay = self.smart_delay()
-                            self.log(f"✅ {count} sent, {skipped} skipped. Waiting {delay:.1f}s...")
+                            self.log(f"{count} sent, {skipped} skipped. Waiting {delay:.1f}s...")
                             await asyncio.sleep(delay)
                             
                         except errors.FloodWaitError as e:
-                            # 🔥 טיפול ב-FloodWait
+                            # Handle FloodWait
                             wait_time = e.seconds + random.uniform(2, 5)
-                            self.log(f"⏰ FloodWait! Waiting {wait_time:.0f}s...")
-                            self.consecutive_successes = 0  # איפוס
+                            self.log(f"FloodWait! Waiting {wait_time:.0f}s...")
+                            self.consecutive_successes = 0  # Reset
                             await asyncio.sleep(wait_time)
                             
                         except Exception as inner_e:
-                            self.log(f"❌ Error in message {message.id}: {inner_e}")
-                            self.consecutive_successes = 0  # איפוס
+                            self.log(f"Error in message {message.id}: {inner_e}")
+                            self.consecutive_successes = 0  # Reset
                             sentry_sdk.capture_exception(inner_e)
                             await asyncio.sleep(self.smart_delay())
                 
-                # שמירה סופית
+                # Final save
                 self.save_progress(s_id, t_id)
                 
-                # עדכון סטטוס סיום
+                # Update completion status
                 if self.backup_running:
                     self.update_status("Completed", "Primary")
-                    self.log(f"🎉 Backup completed!")
-                    self.log(f"📊 Sent: {count}, Skipped: {skipped}")
+                    self.log(f"Backup completed!")
+                    self.log(f"Sent: {count}, Skipped: {skipped}")
                 else:
                     self.update_status("Stopped by user", "Error")
                 
