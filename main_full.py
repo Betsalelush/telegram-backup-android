@@ -1153,18 +1153,18 @@ class TelegramBackupApp(MDApp):
                             delay = self.smart_delay()
                             self.log(f"{count} sent, {skipped} skipped. Waiting {delay:.1f}s...")
                             await asyncio.sleep(delay)
-                            
+                        
                         except errors.FloodWaitError as e:
                             # Handle FloodWait
                             wait_time = e.seconds + random.uniform(2, 5)
                             self.log(f"FloodWait! Waiting {wait_time:.0f}s...")
                             self.consecutive_successes = 0  # Reset
                             await asyncio.sleep(wait_time)
-                            
+                        
                         except Exception as inner_e:
                             self.log(f"Error in message {message.id}: {inner_e}")
                             self.consecutive_successes = 0  # Reset
-                            sentry_sdk.capture_exception(inner_e)
+                            capture_exception(inner_e)
                             await asyncio.sleep(self.smart_delay())
                 
                 # Final save
