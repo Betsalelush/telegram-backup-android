@@ -133,43 +133,71 @@ class TelegramBackupApp(MDApp):
             self.session_dir = os.getcwd()
             logger.info(f"Desktop: Using directory {self.session_dir}")
         
-        # טעינת התקדמות קודמת
-        self.load_progress()
+        # לא טוענים התקדמות כאן - נטען לפי ערוצים ספציפיים
         
         return Builder.load_string(KV)
     
-    def load_progress(self):
-        """Load progress from JSON file"""
+    def get_progress_key(self, source_id, target_id):
+        """Create unique key for source→target channel pair"""
+        return f"channel_{source_id}_to_{target_id}"
+    
+    def load_progress(self, source_id, target_id):
+        """Load progress for specific channel pair"""
         progress_file = os.path.join(self.session_dir, 'progress.json')
+        
+        # Load all progress data
+        all_progress = {}
         if os.path.exists(progress_file):
             try:
                 with open(progress_file, 'r', encoding='utf-8') as f:
-                    progress = json.load(f)
-                self.sent_message_ids = set(progress.get('sent_message_ids', []))
-                self.last_processed_message_id = progress.get('last_message_id', 0)
-                self.log(f"✅ Loaded progress: {len(self.sent_message_ids)} messages sent, last ID: {self.last_processed_message_id}")
+                    all_progress = json.load(f)
             except Exception as e:
-                self.log(f"⚠️ Error loading progress: {e}")
-                logger.error(f"Error loading progress: {e}")
+                logger.error(f"Error loading progress file: {e}")
+        
+        # Get progress for this specific channel pair
+        key = self.get_progress_key(source_id, target_id)
+        channel_progress = all_progress.get(key, {})
+        
+        self.sent_message_ids = set(channel_progress.get('sent_message_ids', []))
+        self.last_processed_message_id = channel_progress.get('last_message_id', 0)
+        
+        if self.sent_message_ids:
+            self.log(f"✅ Loaded progress for {key}: {len(self.sent_message_ids)} messages sent")
+        else:
+            self.log(f"📝 Starting fresh for {key}")
     
-    def save_progress(self):
-        """Save progress to JSON file"""
+    def save_progress(self, source_id, target_id):
+        """Save progress for specific channel pair"""
         progress_file = os.path.join(self.session_dir, 'progress.json')
+        
+        # Load all existing progress
+        all_progress = {}
+        if os.path.exists(progress_file):
+            try:
+                with open(progress_file, 'r', encoding='utf-8') as f:
+                    all_progress = json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading progress file: {e}")
+        
+        # Limit size if too large
+        if len(self.sent_message_ids) > 10000:
+            temp_list = list(self.sent_message_ids)
+            import random
+            random.shuffle(temp_list)
+            self.sent_message_ids = set(temp_list[:10000])
+        
+        # Update progress for this channel pair
+        key = self.get_progress_key(source_id, target_id)
+        all_progress[key] = {
+            'sent_message_ids': list(self.sent_message_ids),
+            'last_message_id': self.last_processed_message_id
+        }
+        
+        # Save all progress
         try:
-            # Limit size if too large
-            if len(self.sent_message_ids) > 10000:
-                temp_list = list(self.sent_message_ids)
-                import random
-                random.shuffle(temp_list)
-                self.sent_message_ids = set(temp_list[:10000])
-            
-            progress_data = {
-                'sent_message_ids': list(self.sent_message_ids),
-                'last_message_id': self.last_processed_message_id
-            }
             with open(progress_file, 'w', encoding='utf-8') as f:
-                json.dump(progress_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"💾 Progress saved: {len(self.sent_message_ids)} messages")
+                json.dump(all_progress, f, ensure_ascii=False, indent=2)
+            logger.info(f"💾 Progress saved for {key}: {len(self.sent_message_ids)} messages")
         except Exception as e:
             logger.error(f"❌ Error saving progress: {e}")
     
@@ -347,7 +375,13 @@ class TelegramBackupApp(MDApp):
 
                 s_title = getattr(s_entity, 'title', str(source))
                 t_title = getattr(t_entity, 'title', str(target))
+                s_id = s_entity.id
+                t_id = t_entity.id
+                
                 self.log(f"Transferring from: {s_title}\nTo: {t_title}")
+                
+                # 🆕 טעינת התקדמות לזוג ערוצים זה
+                self.load_progress(s_id, t_id)
                 
                 # 🆕 שמירת התקדמות + המתנה חכמה
                 count = 0
@@ -361,8 +395,30 @@ class TelegramBackupApp(MDApp):
                             continue
                         
                         try:
-                            # 🔥 טיפול ב-FloodWait
-                            await self.client.send_message(t_entity, message)
+                            # 🔥 הורדה והעלאה ללא קרדיט!
+                            if message.media:
+                                # יש מדיה - הורד והעלה
+                                self.log(f"📥 Downloading media from message {message.id}...")
+                                file = await self.client.download_media(message.media, file=bytes)
+                                
+                                if file:
+                                    self.log(f"📤 Uploading to target...")
+                                    await self.client.send_file(
+                                        t_entity,
+                                        file,
+                                        caption=message.text if message.text else ''
+                                    )
+                                else:
+                                    self.log(f"⚠️ Failed to download media from message {message.id}")
+                                    continue
+                            elif message.text:
+                                # טקסט בלבד
+                                await self.client.send_message(t_entity, message.text)
+                            else:
+                                # הודעה ריקה - דלג
+                                self.log(f"⏩ Skipping empty message {message.id}")
+                                continue
+                            
                             count += 1
                             self.consecutive_successes += 1
                             
@@ -372,7 +428,7 @@ class TelegramBackupApp(MDApp):
                             
                             # שמירת התקדמות כל 10 הודעות
                             if count % 10 == 0:
-                                self.save_progress()
+                                self.save_progress(s_id, t_id)
                             
                             # 🎲 המתנה חכמה - אקראית!
                             delay = self.smart_delay()
@@ -393,7 +449,7 @@ class TelegramBackupApp(MDApp):
                             await asyncio.sleep(self.smart_delay())
                 
                 # שמירה סופית
-                self.save_progress()
+                self.save_progress(s_id, t_id)
                 
                 self.log(f"🎉 Backup completed!")
                 self.log(f"📊 Sent: {count}, Skipped: {skipped}")
