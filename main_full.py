@@ -1044,14 +1044,13 @@ class TelegramBackupApp(MDApp):
                 count = 0
                 skipped = 0
                 
-                # Use min_id to process from newest to specified message ID
-                # iter_messages goes from newest to oldest by default
-                # min_id stops iteration when reaching that message ID
-                min_id = start_id if start_id > 0 else 0
-                if min_id > 0:
-                    self.log(f"Processing from newest message, stopping at message ID: {min_id}")
+                # Use reverse=True and offset_id for chronological order (old→new)
+                # This matches tor.py behavior from user's Python scripts
+                offset_id = start_id if start_id > 0 else 0
+                if offset_id > 0:
+                    self.log(f"Starting from message ID: {offset_id}, going forward (old→new)")
                 
-                async for message in self.client.iter_messages(s_entity, limit=None, min_id=min_id):
+                async for message in self.client.iter_messages(s_entity, limit=None, reverse=True, offset_id=offset_id):
                     # בדיקה אם המשתמש עצר את הגיבוי
                     if not self.backup_running:
                         self.log("Backup stopped")
