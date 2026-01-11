@@ -55,9 +55,38 @@ jobs:
           libffi-dev \
           libssl-dev
     
+    - name: 📱 Setup Android SDK
+      run: |
+        echo "📱 מתקין Android SDK command-line tools..."
+        
+        # יצירת תיקיות
+        mkdir -p ~/.buildozer/android/platform/android-sdk
+        cd ~/.buildozer/android/platform/android-sdk
+        
+        # הורדת command-line tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-11076708_latest.zip
+        rm commandlinetools-linux-11076708_latest.zip
+        
+        # ארגון מבנה תיקיות
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+        
+        # הגדרת משתני סביבה
+        echo "ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+        
+        # אישור רישיונות
+        mkdir -p licenses
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > licenses/android-sdk-license
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> licenses/android-sdk-license
+        
+        echo "✅ Android SDK הותקן בהצלחה!"
+    
     - name: 🔧 Install Buildozer
       run: |
         pip install buildozer cython==0.29.33
+    
     
     - name: 🎯 Select version
       id: get_version
