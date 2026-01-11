@@ -812,16 +812,29 @@ class TelegramBackupApp(MDApp):
             sentry_sdk.capture_exception(e)
             return
         
-        # שמירת הלוגיקה והלקוח ברמת האפליקציה
+        # Validate and convert API ID
+        try:
+            api_id_int = int(api_id)
+            # Check if API ID is within valid range (32-bit signed integer)
+            if api_id_int < -2147483648 or api_id_int > 2147483647:
+                self.log("ERROR: API ID is too large. Please check your API ID from my.telegram.org")
+                self.update_status("Invalid API ID", "Error")
+                return
+        except ValueError:
+            self.log("ERROR: API ID must be a number")
+            self.update_status("Invalid API ID", "Error")
+            return
+        
+        # Save client info
         try:
             session_name = f'session_{phone.replace("+", "")}'
             session_path = os.path.join(self.session_dir, session_name)
-            self.log(f"יוצר session: {session_path}")
+            self.log(f"Creating session: {session_path}")
             
-            self.client = TelegramClient(session_path, int(api_id), api_hash)
+            self.client = TelegramClient(session_path, api_id_int, api_hash)
             self.phone = phone
         except Exception as e:
-            error_msg = f"שגיאה ביצירת לקוח: {e}"
+            error_msg = f"Error creating client: {e}"
             self.log(error_msg)
             sentry_sdk.capture_exception(e)
             return
