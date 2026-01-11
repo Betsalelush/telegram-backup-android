@@ -153,7 +153,7 @@ jobs:
             PACKAGE="testkivymd"
             ;;
           full)
-            cp main_full.py main.py
+            # New architecture - main.py already exists
             cp requirements_full.txt requirements.txt
             TITLE="Telegram Backup"
             PACKAGE="telegrambackup"
