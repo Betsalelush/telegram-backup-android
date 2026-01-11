@@ -1193,9 +1193,7 @@ class TelegramBackupApp(MDApp):
 
                             # Smart delay - random!
                             delay = self.smart_delay()
-                            self.log(
-    f"{count} sent, {skipped} skipped. Waiting {
-        delay:.1f}s...")
+                            self.log(f"{count} sent, {skipped} skipped. Waiting {delay:.1f}s...")
                             await asyncio.sleep(delay)
 
                         except errors.FloodWaitError as e:
