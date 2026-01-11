@@ -55,31 +55,84 @@ MDBoxLayout:
                 theme_text_color: "Primary"
                 font_style: "Caption"
             
-            MDTextField:
-                id: api_id
-                hint_text: "API ID"
-                mode: "rectangle"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: api_id
+                    hint_text: "API ID"
+                    mode: "rectangle"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('api_id')
 
-            MDTextField:
-                id: api_hash
-                hint_text: "API HASH"
-                mode: "rectangle"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: api_hash
+                    hint_text: "API HASH"
+                    mode: "rectangle"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('api_hash')
 
-            MDTextField:
-                id: phone
-                hint_text: "Phone Number (+972...)"
-                mode: "rectangle"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: phone
+                    hint_text: "Phone Number (+972...)"
+                    mode: "rectangle"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('phone')
 
             MDFillRoundFlatButton:
+                id: send_code_btn
                 text: "Send Verification Code"
                 pos_hint: {"center_x": .5}
                 on_release: app.send_code()
 
-            MDTextField:
-                id: code
-                hint_text: "Verification Code"
-                mode: "rectangle"
-                disabled: True
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: code
+                    hint_text: "Verification Code"
+                    mode: "rectangle"
+                    disabled: True
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('code')
 
             MDFillRoundFlatButton:
                 id: login_btn
@@ -88,21 +141,60 @@ MDBoxLayout:
                 disabled: True
                 on_release: app.login()
 
-            MDTextField:
-                id: source_channel
-                hint_text: "Source Channel (ID or Link)"
-                mode: "rectangle"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: source_channel
+                    hint_text: "Source Channel (ID or Link)"
+                    mode: "rectangle"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('source_channel')
 
-            MDTextField:
-                id: target_channel
-                hint_text: "Target Channel (ID or Link)"
-                mode: "rectangle"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: target_channel
+                    hint_text: "Target Channel (ID or Link)"
+                    mode: "rectangle"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('target_channel')
             
-            MDTextField:
-                id: start_message_id
-                hint_text: "Start from Message ID (optional, 0 = from beginning)"
-                mode: "rectangle"
-                text: "0"
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "56dp"
+                spacing: 5
+                
+                MDTextField:
+                    id: start_message_id
+                    hint_text: "Start from Message ID (optional, 0 = from beginning)"
+                    mode: "rectangle"
+                    text: "0"
+                
+                MDIconButton:
+                    icon: "content-paste"
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    pos_hint: {"center_y": .5}
+                    on_release: app.paste_to_field('start_message_id')
             
             
             MDLabel:
@@ -564,6 +656,47 @@ class TelegramBackupApp(MDApp):
                 source_entity
             )
 
+    
+    def paste_to_field(self, field_id):
+        """Paste clipboard content to specified field"""
+        try:
+            # Try to get clipboard content (Android)
+            from android.runnable import run_on_ui_thread
+            from jnius import autoclass
+            
+            @run_on_ui_thread
+            def get_clipboard():
+                try:
+                    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                    activity = PythonActivity.mActivity
+                    clipboard = activity.getSystemService(activity.CLIPBOARD_SERVICE)
+                    
+                    if clipboard.hasPrimaryClip():
+                        clip = clipboard.getPrimaryClip()
+                        if clip.getItemCount() > 0:
+                            text = clip.getItemAt(0).getText()
+                            if text:
+                                # Update field on main thread
+                                from kivy.clock import Clock
+                                def update_field(dt):
+                                    self.root.ids[field_id].text = str(text)
+                                    self.log(f"Pasted to {field_id}")
+                                Clock.schedule_once(update_field)
+                except Exception as e:
+                    self.log(f"ERROR pasting: {e}")
+            
+            get_clipboard()
+        except ImportError:
+            # Not on Android - try desktop clipboard
+            try:
+                from kivy.core.clipboard import Clipboard
+                text = Clipboard.paste()
+                if text:
+                    self.root.ids[field_id].text = text
+                    self.log(f"Pasted to {field_id}")
+            except Exception as e:
+                self.log(f"ERROR pasting: {e}")
+
     def log(self, message):
         def update_ui(dt):
             current_text = self.root.ids.status_log.text
@@ -591,10 +724,7 @@ class TelegramBackupApp(MDApp):
         # Disable send button to prevent double-click
         from kivy.clock import Clock
         def disable_send_btn(dt):
-            # Find the send button by iterating through children
-            for child in self.root.ids.values():
-                if hasattr(child, 'text') and 'Send Verification Code' in str(child.text):
-                    child.disabled = True
+            self.root.ids.send_code_btn.disabled = True
         Clock.schedule_once(disable_send_btn)
         
         # 🔥 Lazy Loading: Load Telethon only here!
@@ -669,9 +799,7 @@ class TelegramBackupApp(MDApp):
                 # Re-enable send button on error
                 from kivy.clock import Clock
                 def enable_send_btn(dt):
-                    for child in self.root.ids.values():
-                        if hasattr(child, 'text') and 'Send Verification Code' in str(child.text):
-                            child.disabled = False
+                    self.root.ids.send_code_btn.disabled = False
                 Clock.schedule_once(enable_send_btn)
         
         try:
