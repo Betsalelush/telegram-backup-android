@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import random
 import threading
 import time
@@ -419,6 +420,12 @@ class TelegramBackupApp(MDApp):
         self.client = None
         self.phone = None
         
+        # 🆕 Worker thread with persistent event loop
+        self.worker_loop = None
+        self.worker_thread = None
+        self.task_queue = queue.Queue()
+        self._start_worker_thread()
+        
         # 🆕 שמירת התקדמות
         self.sent_message_ids = set()
         self.last_processed_message_id = 0
@@ -449,6 +456,38 @@ class TelegramBackupApp(MDApp):
         # לא טוענים התקדמות כאן - נטען לפי ערוצים ספציפיים
         
         return Builder.load_string(KV)
+    
+    def _start_worker_thread(self):
+        """Start persistent worker thread with event loop"""
+        def worker():
+            self.worker_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.worker_loop)
+            
+            async def process_tasks():
+                while True:
+                    try:
+                        task = await asyncio.get_event_loop().run_in_executor(None, self.task_queue.get, True, 0.1)
+                        if task is None:  # Shutdown signal
+                            break
+                        await task()
+                    except queue.Empty:
+                        continue
+                    except Exception as e:
+                        logger.error(f"Worker task error: {e}")
+                        sentry_sdk.capture_exception(e)
+            
+            try:
+                self.worker_loop.run_until_complete(process_tasks())
+            finally:
+                self.worker_loop.close()
+        
+        self.worker_thread = threading.Thread(target=worker, daemon=True)
+        self.worker_thread.start()
+    
+    def run_in_worker(self, coro):
+        """Schedule coroutine to run in worker thread's event loop"""
+        future = asyncio.run_coroutine_threadsafe(coro, self.worker_loop)
+        return future
     
     def get_progress_key(self, source_id, target_id):
         """Create unique key for source→target channel pair"""
@@ -757,13 +796,7 @@ class TelegramBackupApp(MDApp):
             sentry_sdk.capture_exception(e)
             return
 
-        threading.Thread(target=self._send_code_thread, args=(phone,), daemon=True).start()
-
-    def _send_code_thread(self, phone):
-        # יצירת Loop חדש עבור ה-Thread הזה
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
+        # Use worker thread instead of creating new thread
         async def async_send():
             try:
                 self.log("Connecting to Telegram servers...")
@@ -802,12 +835,8 @@ class TelegramBackupApp(MDApp):
                     self.root.ids.send_code_btn.disabled = False
                 Clock.schedule_once(enable_send_btn)
         
-        try:
-            loop.run_until_complete(async_send())
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-        finally:
-            loop.close()
+        # Run in worker thread's event loop
+        self.run_in_worker(async_send())
 
     def login(self):
         code = self.root.ids.code.text
@@ -817,12 +846,7 @@ class TelegramBackupApp(MDApp):
             return
         self.log("Logging in...")
         self.update_status("Logging in...", "Custom")
-        threading.Thread(target=self._login_thread, args=(phone, code), daemon=True).start()
-
-    def _login_thread(self, phone, code):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
+        # Use worker thread instead of creating new thread
         async def async_login():
             try:
                 if not self.client.is_connected():
@@ -841,13 +865,9 @@ class TelegramBackupApp(MDApp):
                 self.log(error_msg)
                 self.update_status("Login error", "Error")
                 sentry_sdk.capture_exception(e)
-
-        try:
-            loop.run_until_complete(async_login())
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-        finally:
-            loop.close()
+        
+        # Run in worker thread's event loop
+        self.run_in_worker(async_login())
 
     def start_backup(self):
         source = self.root.ids.source_channel.text
