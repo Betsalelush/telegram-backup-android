@@ -581,21 +581,34 @@ class TelegramBackupApp(MDApp):
         phone = self.root.ids.phone.text
 
         if not api_id or not api_hash or not phone:
-            self.log("חסרים פרטים (API ID/HASH/Phone)")
+            self.log("ERROR: Missing details (API ID/HASH/Phone)")
             return
         
-        # 🔥 Lazy Loading: טעינת Telethon רק כאן!
+        # Show visual feedback
+        self.log("Sending verification code...")
+        self.update_status("Sending code...", "Custom")
+        
+        # Disable send button to prevent double-click
+        from kivy.clock import Clock
+        def disable_send_btn(dt):
+            # Find the send button by iterating through children
+            for child in self.root.ids.values():
+                if hasattr(child, 'text') and 'Send Verification Code' in str(child.text):
+                    child.disabled = True
+        Clock.schedule_once(disable_send_btn)
+        
+        # 🔥 Lazy Loading: Load Telethon only here!
         try:
-            self.log("טוען Telethon...")
+            self.log("Loading Telethon...")
             from telethon import TelegramClient
-            self.log("✅ Telethon נטען בהצלחה!")
+            self.log("✅ Telethon loaded successfully!")
         except ImportError as e:
-            error_msg = f"❌ שגיאה: Telethon לא מותקן - {e}"
-            self.log(error_msg)
+            self.log(f"❌ ERROR: Telethon not installed - {e}")
+            self.update_status("Error loading Telethon", "Error")
             sentry_sdk.capture_exception(e)
             return
         except Exception as e:
-            error_msg = f"❌ שגיאה בטעינת Telethon: {e}"
+            error_msg = f"❌ Error loading Telethon: {e}"
             self.log(error_msg)
             sentry_sdk.capture_exception(e)
             return
@@ -623,30 +636,43 @@ class TelegramBackupApp(MDApp):
         
         async def async_send():
             try:
-                self.log("מתחבר לשרתי טלגרם...")
+                self.log("Connecting to Telegram servers...")
+                self.update_status("Connecting...", "Custom")
                 await self.client.connect()
                 
                 if not await self.client.is_user_authorized():
-                    self.log("שולח בקשת קוד אימות...")
+                    self.log("Requesting verification code...")
+                    self.update_status("Requesting code...", "Custom")
                     await self.client.send_code_request(phone)
-                    self.log("קוד נשלח! אנא הזן אותו בשדה המתאים ולחץ 'התחבר'.")
+                    self.log("✅ Code sent! Please enter it in the field below and click 'Login'.")
+                    self.update_status("Code sent successfully!", "Primary")
                     
-                    # שינוי מצב כפתורים דרך Clock
+                    # Enable code field and login button
                     from kivy.clock import Clock
                     def enable_fields(dt):
                         self.root.ids.code.disabled = False
                         self.root.ids.login_btn.disabled = False
                     Clock.schedule_once(enable_fields)
                 else:
-                    self.log("כבר מחובר למשתמש זה!")
+                    self.log("Already logged in!")
+                    self.update_status("Already logged in", "Primary")
                     from kivy.clock import Clock
                     def enable_backup(dt):
                         self.root.ids.start_btn.disabled = False
                     Clock.schedule_once(enable_backup)
             except Exception as e:
-                error_msg = f"שגיאה בשליחת קוד: {e}"
+                error_msg = f"ERROR sending code: {e}"
                 self.log(error_msg)
+                self.update_status("Error sending code", "Error")
                 sentry_sdk.capture_exception(e)
+                
+                # Re-enable send button on error
+                from kivy.clock import Clock
+                def enable_send_btn(dt):
+                    for child in self.root.ids.values():
+                        if hasattr(child, 'text') and 'Send Verification Code' in str(child.text):
+                            child.disabled = False
+                Clock.schedule_once(enable_send_btn)
         
         try:
             loop.run_until_complete(async_send())
@@ -659,8 +685,10 @@ class TelegramBackupApp(MDApp):
         code = self.root.ids.code.text
         phone = self.root.ids.phone.text
         if not code:
-            self.log("אנא הזן את הקוד שקיבלת.")
+            self.log("ERROR: Please enter the code you received.")
             return
+        self.log("Logging in...")
+        self.update_status("Logging in...", "Custom")
         threading.Thread(target=self._login_thread, args=(phone, code), daemon=True).start()
 
     def _login_thread(self, phone, code):
@@ -673,15 +701,17 @@ class TelegramBackupApp(MDApp):
                      await self.client.connect()
                      
                 await self.client.sign_in(phone, code)
-                self.log("התחברת בהצלחה!")
+                self.log("✅ Logged in successfully!")
+                self.update_status("Logged in successfully", "Primary")
                 
                 from kivy.clock import Clock
                 def enable_backup(dt):
                     self.root.ids.start_btn.disabled = False
                 Clock.schedule_once(enable_backup)
             except Exception as e:
-                error_msg = f"שגיאה בהתחברות: {e}"
+                error_msg = f"ERROR logging in: {e}"
                 self.log(error_msg)
+                self.update_status("Login error", "Error")
                 sentry_sdk.capture_exception(e)
 
         try:
