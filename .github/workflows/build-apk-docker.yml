@@ -1,0 +1,156 @@
+name: Build Android APK (Docker)
+
+on:
+  # הפעלה ידנית מהממשק
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build'
+        required: true
+        default: 'crash_test'
+        type: choice
+        options:
+          - crash_test
+          - basic
+          - kivymd
+          - full
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🎯 Select version
+      id: get_version
+      run: |
+        VERSION="${{ github.event.inputs.version || 'crash_test' }}"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "🎯 Building version: $VERSION"
+    
+    - name: 📄 Copy version files
+      run: |
+        VERSION=$VERSION
+        
+        case $VERSION in
+          crash_test)
+            cp main_crash_test.py main.py
+            cp requirements_crash_test.txt requirements.txt
+            TITLE="Crash Test"
+            PACKAGE="crashtest"
+            ;;
+          basic)
+            cp main_test_basic.py main.py
+            cp requirements_basic.txt requirements.txt
+            TITLE="Test Basic"
+            PACKAGE="testbasic"
+            ;;
+          kivymd)
+            cp main_test_kivymd.py main.py
+            cp requirements_kivymd.txt requirements.txt
+            TITLE="Test KivyMD"
+            PACKAGE="testkivymd"
+            ;;
+          full)
+            cp main_full.py main.py
+            cp requirements_full.txt requirements.txt
+            TITLE="Telegram Backup"
+            PACKAGE="telegrambackup"
+            ;;
+        esac
+        
+        echo "TITLE=$TITLE" >> $GITHUB_ENV
+        echo "PACKAGE=$PACKAGE" >> $GITHUB_ENV
+        
+        echo "✅ Copied files for version: $VERSION"
+        echo "📱 App title: $TITLE"
+        echo "📦 Package: $PACKAGE"
+    
+    - name: 🔨 Create buildozer.spec
+      run: |
+        VERSION=$VERSION
+        TITLE="$TITLE"
+        PACKAGE="$PACKAGE"
+        
+        # קביעת requirements לפי גרסה
+        if [ "$VERSION" = "crash_test" ] || [ "$VERSION" = "kivymd" ] || [ "$VERSION" = "full" ]; then
+          KIVYMD=",kivymd"
+        else
+          KIVYMD=""
+        fi
+        
+        if [ "$VERSION" = "full" ]; then
+          TELETHON=",telethon,openssl"
+        else
+          TELETHON=""
+        fi
+        
+        cat > buildozer.spec << EOF
+        [app]
+        title = $TITLE
+        package.name = $PACKAGE
+        package.domain = org.backup
+        source.dir = .
+        source.include_exts = py,png,jpg,kv,atlas
+        version = 1.0
+        
+        requirements = python3,kivy==2.2.1,sentry-sdk==1.40.0$KIVYMD$TELETHON
+        
+        orientation = portrait
+        fullscreen = 0
+        
+        android.permissions = INTERNET,ACCESS_NETWORK_STATE
+        android.api = 31
+        android.minapi = 21
+        android.archs = arm64-v8a
+        android.accept_sdk_license = True
+        android.logcat_filters = *:S python:D kivy:D
+        
+        [buildozer]
+        log_level = 2
+        warn_on_root = 0
+        EOF
+        
+        echo "✅ buildozer.spec created"
+    
+    - name: 🐳 Build APK with Docker (kivy/buildozer)
+      run: |
+        echo "🐳 Starting Docker build..."
+        echo "⏰ This will take 30-40 minutes"
+        echo "📦 Using official kivy/buildozer image"
+        
+        # הרצת buildozer בתוך Docker container
+        docker run --rm \
+          -v "$PWD":/home/user/hostcwd \
+          -w /home/user/hostcwd \
+          kivy/buildozer:latest \
+          /bin/bash -c "
+            set -eux
+            echo '🔧 Upgrading buildozer and python-for-android...'
+            pip install --upgrade pip
+            pip install --upgrade buildozer python-for-android
+            
+            echo '🏗️ Building APK...'
+            buildozer -v android debug
+            
+            echo '✅ Build completed!'
+          "
+    
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-${{ steps.get_version.outputs.version }}-${{ github.sha }}
+        path: bin/*.apk
+        retention-days: 30
+    
+    - name: 🎉 Build complete
+      run: |
+        APK_FILE=$(ls bin/*.apk)
+        APK_SIZE=$(du -h "$APK_FILE" | cut -f1)
+        echo "✅ Build completed successfully!"
+        echo "📦 APK: $APK_FILE"
+        echo "📊 Size: $APK_SIZE"
+        echo "🔗 Download from: Actions → Artifacts"
