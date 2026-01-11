@@ -61,8 +61,16 @@ jobs:
           cmake \
           libffi-dev \
           libssl-dev \
-          python3-dev
+          python3-dev \
+          libltdl-dev
     
+    
+    - name: 🔄 Update autotools macros
+      run: |
+        echo "🔄 מעדכן autotools macros..."
+        # עדכון autotools לגרסאות אחרונות
+        sudo apt-get install --only-upgrade -y autoconf automake libtool
+        echo "✅ autotools עודכן!"
     - name: 📱 Setup Android SDK
       run: |
         echo "📱 מתקין Android SDK command-line tools..."
