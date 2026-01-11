@@ -181,7 +181,7 @@ jobs:
         fi
         
         if [ "$VERSION" = "full" ]; then
-          TELETHON=",telethon,pyaes,rsa,openssl"
+          TELETHON=",telethon,pyaes,rsa,pyasn1,openssl"
         else
           TELETHON=""
         fi

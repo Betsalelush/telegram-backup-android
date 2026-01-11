@@ -3,4 +3,5 @@ kivymd
 telethon
 pyaes
 rsa
+pyasn1
 sentry-sdk==1.40.0
