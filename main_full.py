@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import os
+import random
 import threading
 from kivy.lang import Builder
 from kivymd.app import MDApp
@@ -94,6 +96,87 @@ MDBoxLayout:
                 id: target_channel
                 hint_text: "Target Channel (ID or Link)"
                 mode: "rectangle"
+            
+            MDTextField:
+                id: start_message_id
+                hint_text: "Start from Message ID (optional, 0 = from beginning)"
+                mode: "rectangle"
+                text: "0"
+            
+            MDLabel:
+                text: "Select message types to transfer:"
+                halign: "left"
+                size_hint_y: None
+                height: self.texture_size[1]
+                theme_text_color: "Primary"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "48dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: cb_text
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    active: True
+                
+                MDLabel:
+                    text: "Text"
+                    size_hint_y: None
+                    height: "48dp"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "48dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: cb_photos
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    active: True
+                
+                MDLabel:
+                    text: "Photos"
+                    size_hint_y: None
+                    height: "48dp"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "48dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: cb_videos
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    active: True
+                
+                MDLabel:
+                    text: "Videos"
+                    size_hint_y: None
+                    height: "48dp"
+            
+            MDBoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: "48dp"
+                spacing: 10
+                
+                MDCheckbox:
+                    id: cb_documents
+                    size_hint: None, None
+                    size: "48dp", "48dp"
+                    active: True
+                
+                MDLabel:
+                    text: "Documents"
+                    size_hint_y: None
+                    height: "48dp"
 
             MDFillRoundFlatButton:
                 id: start_btn
@@ -122,6 +205,11 @@ class TelegramBackupApp(MDApp):
         self.sent_message_ids = set()
         self.last_processed_message_id = 0
         self.consecutive_successes = 0
+        
+        # 🔥 מונה הודעות לדקה (מניעת חסימה)
+        self.messages_per_minute = 0
+        self.max_messages_per_minute = 20
+        self.minute_start_time = None
         
         # תיקון Android: שימוש בתיקיית האפליקציה לקבצי Session
         try:
@@ -200,6 +288,31 @@ class TelegramBackupApp(MDApp):
             logger.info(f"💾 Progress saved for {key}: {len(self.sent_message_ids)} messages")
         except Exception as e:
             logger.error(f"❌ Error saving progress: {e}")
+    
+    async def check_rate_limit(self):
+        """Check and manage rate limits (20 messages/minute)"""
+        from datetime import datetime, timedelta
+        
+        if self.minute_start_time is None:
+            self.minute_start_time = datetime.now()
+        
+        # בדוק אם עברה דקה
+        elapsed = datetime.now() - self.minute_start_time
+        if elapsed.total_seconds() >= 60:
+            # איפוס מונה
+            self.messages_per_minute = 0
+            self.minute_start_time = datetime.now()
+            self.log(f"📊 Rate limit reset: 0/{self.max_messages_per_minute} messages this minute")
+        
+        # בדוק אם עברנו את הגבול
+        if self.messages_per_minute >= self.max_messages_per_minute:
+            wait_time = 60 - elapsed.total_seconds()
+            if wait_time > 0:
+                self.log(f"⚠️ Rate limit reached! Waiting {int(wait_time)}s...")
+                await asyncio.sleep(wait_time)
+                # איפוס אחרי המתנה
+                self.messages_per_minute = 0
+                self.minute_start_time = datetime.now()
     
     def smart_delay(self):
         """Smart delay based on consecutive successes"""
@@ -342,12 +455,28 @@ class TelegramBackupApp(MDApp):
         source = self.root.ids.source_channel.text
         target = self.root.ids.target_channel.text
         if not source or not target:
-            self.log("אנא הזן ערוץ מקור וערוץ יעד.")
+            self.log("Please enter source and target channels.")
             return
         
-        threading.Thread(target=self._backup_thread, args=(source, target), daemon=True).start()
+        # 🆕 קריאת הגדרות מה-UI
+        try:
+            start_id = int(self.root.ids.start_message_id.text or "0")
+        except ValueError:
+            start_id = 0
+        
+        # קריאת checkboxes
+        file_types = {
+            'text': self.root.ids.cb_text.active,
+            'photos': self.root.ids.cb_photos.active,
+            'videos': self.root.ids.cb_videos.active,
+            'documents': self.root.ids.cb_documents.active
+        }
+        
+        self.log(f"🎯 Settings: Start ID={start_id}, Types={file_types}")
+        
+        threading.Thread(target=self._backup_thread, args=(source, target, start_id, file_types), daemon=True).start()
 
-    def _backup_thread(self, source, target):
+    def _backup_thread(self, source, target, start_id, file_types):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -387,18 +516,52 @@ class TelegramBackupApp(MDApp):
                 count = 0
                 skipped = 0
                 
-                async for message in self.client.iter_messages(s_entity, limit=100):
+                # 🎯 שימוש ב-start_id אם צוין
+                offset_id = start_id if start_id > 0 else 0
+                if offset_id > 0:
+                    self.log(f"🎯 Starting from message ID: {offset_id}")
+                
+                async for message in self.client.iter_messages(s_entity, limit=None, offset_id=offset_id):
                     if message and message.id:
                         # בדיקה אם כבר שלחנו את ההודעה
                         if message.id in self.sent_message_ids:
                             skipped += 1
                             continue
                         
+                        # 🔍 סינון סוגי קבצים
+                        should_send = False
+                        message_type = None
+                        
+                        if message.text and not message.media:
+                            should_send = file_types.get('text', True)
+                            message_type = "text"
+                        elif message.photo:
+                            should_send = file_types.get('photos', True)
+                            message_type = "photo"
+                        elif message.video:
+                            should_send = file_types.get('videos', True)
+                            message_type = "video"
+                        elif message.document:
+                            should_send = file_types.get('documents', True)
+                            message_type = "document"
+                        else:
+                            # סוגים אחרים (audio, voice, etc.)
+                            should_send = True
+                            message_type = "other"
+                        
+                        if not should_send:
+                            self.log(f"⏩ Skipping {message_type} message {message.id} (filtered)")
+                            skipped += 1
+                            continue
+                        
                         try:
+                            # 🔥 בדיקת הגבלת קצב לפני שליחה
+                            await self.check_rate_limit()
+                            
                             # 🔥 הורדה והעלאה ללא קרדיט!
                             if message.media:
                                 # יש מדיה - הורד והעלה
-                                self.log(f"📥 Downloading media from message {message.id}...")
+                                self.log(f"📥 Downloading {message_type} from message {message.id}...")
                                 file = await self.client.download_media(message.media, file=bytes)
                                 
                                 if file:
@@ -421,6 +584,10 @@ class TelegramBackupApp(MDApp):
                             
                             count += 1
                             self.consecutive_successes += 1
+                            
+                            # 📊 עדכון מונה הודעות לדקה
+                            self.messages_per_minute += 1
+                            self.log(f"📊 Rate: {self.messages_per_minute}/{self.max_messages_per_minute} messages this minute")
                             
                             # שמירת ההודעה כנשלחה
                             self.sent_message_ids.add(message.id)
