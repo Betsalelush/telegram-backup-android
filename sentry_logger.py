@@ -17,7 +17,7 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Capture ALL logs including DEBUG
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 # Sentry configuration with enhanced logging
 sentry_logging = LoggingIntegration(
-    level=logging.INFO,  # Capture info and above as breadcrumbs
-    event_level=logging.ERROR  # Send errors as events
+    level=logging.DEBUG,  # Capture DEBUG and above as breadcrumbs
+    event_level=logging.WARNING  # Send warnings and errors as events
 )
 
 sentry_sdk.init(
@@ -37,10 +37,13 @@ sentry_sdk.init(
     profiles_sample_rate=1.0,  # 100% of profiles
     max_breadcrumbs=100,  # Keep last 100 breadcrumbs
     integrations=[sentry_logging],
+    enable_tracing=True,  # Enable performance monitoring
     # Enable debug mode for development
     debug=False,
     # Attach stack traces to messages
     attach_stacktrace=True,
+    # Send default PII (personally identifiable information)
+    send_default_pii=False,
 )
 
 def add_breadcrumb(category, message, level='info', data=None):

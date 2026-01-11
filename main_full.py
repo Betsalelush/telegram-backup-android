@@ -1049,39 +1049,80 @@ class TelegramBackupApp(MDApp):
                         self.log("Backup stopped")
                         break
                     
-                    if message and message.id:
-                        # בדיקה אם כבר שלחנו את ההודעה
-                        if message.id in self.sent_message_ids:
-                            skipped += 1
-                            continue
-                        
-                        # סינון סוגי קבצים
-                        should_send = False
-                        message_type = None
-                        
-                        if message.text and not message.media:
-                            should_send = file_types.get('text', True)
-                            message_type = "text"
-                        elif message.photo:
-                            should_send = file_types.get('photos', True)
-                            message_type = "photo"
-                        elif message.video:
-                            should_send = file_types.get('videos', True)
-                            message_type = "video"
-                        elif message.document:
-                            should_send = file_types.get('documents', True)
-                            message_type = "document"
-                        else:
-                            # סוגים אחרים (audio, voice, etc.)
-                            should_send = True
-                            message_type = "other"
-                        
-                        if not should_send:
-                            self.log(f"Skipping {message_type} message {message.id} (filtered)")
-                            skipped += 1
-                            continue
-                        
-                        try:
+                    # Handle deleted or None messages
+                    if not message:
+                        sentry_sdk.add_breadcrumb('backup', f'Skipped: Deleted or None message', 'warning')
+                        self.log("Skipped: Deleted or empty message slot")
+                        skipped += 1
+                        continue
+                    
+                    if not message.id:
+                        sentry_sdk.add_breadcrumb('backup', f'Skipped: Message without ID', 'warning')
+                        self.log("Skipped: Message without ID")
+                        skipped += 1
+                        continue
+                    
+                    # בדיקה אם כבר שלחנו את ההודעה
+                    if message.id in self.sent_message_ids:
+                        skipped += 1
+                        continue
+                    
+                    # Check for unsupported message types
+                    skip_reason = None
+                    
+                    # Polls
+                    if hasattr(message, 'poll') and message.poll:
+                        skip_reason = "Poll (not supported)"
+                    # Games
+                    elif hasattr(message, 'game') and message.game:
+                        skip_reason = "Game (not supported)"
+                    # Service messages (user joined, etc.)
+                    elif hasattr(message, 'action') and message.action:
+                        skip_reason = f"Service message: {type(message.action).__name__}"
+                    # Empty messages (no text, no media)
+                    elif not message.text and not message.media:
+                        skip_reason = "Empty message (no content)"
+                    
+                    if skip_reason:
+                        sentry_sdk.add_breadcrumb('backup', f'Message {message.id} skipped: {skip_reason}', 'info', {
+                            'message_id': message.id,
+                            'reason': skip_reason
+                        })
+                        self.log(f"Skipped message {message.id}: {skip_reason}")
+                        skipped += 1
+                        continue
+                    
+                    # סינון סוגי קבצים
+                    should_send = False
+                    message_type = None
+                    
+                    if message.text and not message.media:
+                        should_send = file_types.get('text', True)
+                        message_type = "text"
+                    elif message.photo:
+                        should_send = file_types.get('photos', True)
+                        message_type = "photo"
+                    elif message.video:
+                        should_send = file_types.get('videos', True)
+                        message_type = "video"
+                    elif message.document:
+                        should_send = file_types.get('documents', True)
+                        message_type = "document"
+                    else:
+                        # סוגים אחרים (audio, voice, etc.)
+                        should_send = True
+                        message_type = "other"
+                    
+                    if not should_send:
+                        sentry_sdk.add_breadcrumb('backup', f'Message {message.id} filtered: {message_type} not selected', 'info', {
+                            'message_id': message.id,
+                            'type': message_type
+                        })
+                        self.log(f"Skipping {message_type} message {message.id} (filtered by user settings)")
+                        skipped += 1
+                        continue
+                    
+                    try:
                             # בדיקת הגבלת קצב לפני שליחה
                             await self.check_rate_limit()
                             
