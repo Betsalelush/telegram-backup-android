@@ -169,6 +169,13 @@ MDBoxLayout:
                 size_hint_y: None
                 height: self.texture_size[1]
                 theme_text_color: "Error"
+            
+            MDFillRoundFlatButton:
+                id: disconnect_btn
+                text: "Disconnect"
+                pos_hint: {"center_x": .5}
+                disabled: True
+                on_release: app.disconnect()
 
             MDBoxLayout:
                 orientation: 'horizontal'
