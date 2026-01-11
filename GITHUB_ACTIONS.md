@@ -3,10 +3,42 @@
 ## למה GitHub Actions?
 
 - ✅ **לא צריך להישאר בדפדפן** - הבנייה רצה ברקע
-- ✅ **אוטומציה מלאה** - push = בנייה אוטומטית
+- ✅ **אוטומציה מלאה** - push = בנייה אוטומטית (אופציונלי)
 - ✅ **לוגים מלאים** - כל הלוגים נשמרים
 - ✅ **מהיר יותר** - 30-40 דקות (במקום שעה ב-Colab)
 - ✅ **אין timeout** - GitHub Actions לא מנתק
+- ✅ **עובד!** - הצלחנו לבנות APK בהצלחה! 🎉
+
+## 🎯 הפתרון שעבד
+
+אחרי 7 ניסיונות, הפתרון הסופי שעבד:
+
+### תלויות נדרשות:
+```yaml
+- autoconf
+- automake
+- libtool
+- libtool-bin        # ← חיוני!
+- autoconf-archive
+- m4
+- pkg-config
+- gettext
+- python3-dev        # ← חיוני!
+- libltdl-dev        # ← זה עשה את ההבדל!
+- libffi-dev
+- build-essential
+```
+
+### צעד נוסף:
+```yaml
+- name: 🔄 Update autotools macros
+  run: |
+    sudo apt-get install --only-upgrade -y autoconf automake libtool
+```
+
+**המפתח להצלחה**: `libltdl-dev` + עדכון autotools
+
+---
 
 ## איך להשתמש?
 
@@ -31,22 +63,38 @@
    - לחץ על הריצה (run)
    - גלול למטה ל-"Artifacts"
    - לחץ על `apk-[version]-[hash]` להורדה
+   - חלץ את קובץ ה-ZIP
+   - העבר את ה-APK לטלפון
 
-### אופציה 2: בנייה אוטומטית
+### אופציה 2: הרצה מהטרמינל
 
-כל פעם ש**אתה עושה push** לקבצים הבאים, הבנייה תתחיל אוטומטית:
-- `main*.py`
-- `requirements*.txt`
-- `.github/workflows/build-apk.yml`
+```powershell
+# הרצת build
+gh workflow run build-apk.yml -f version=crash_test
 
-הגרסה שתיבנה: `crash_test` (ברירת מחדל)
+# בדיקת סטטוס
+gh run list --workflow=build-apk.yml --limit 1
 
-## 📊 מעקב אחר הבנייה
+# הורדת APK
+gh run download [run-id]
+```
 
-1. **גש ל-Actions** בגיטהאב
-2. **לחץ על הריצה האחרונה**
-3. **לחץ על "build"** כדי לראות את הלוגים
-4. **עקוב בזמן אמת** - תראה כל שלב
+---
+
+## 📦 הורדת ה-APK
+
+ה-APK נמצא ב:
+```
+e:\app backup\telegram-backup-android\apk-download\apk-crash_test-[hash]\
+```
+
+**להתקנה בטלפון**:
+1. העבר את קובץ ה-APK לטלפון (דרך USB/Bluetooth/Cloud)
+2. פתח את הקובץ בטלפון
+3. אפשר "התקנה ממקורות לא ידועים" אם נדרש
+4. התקן
+
+---
 
 ## 🐛 איתור קריסות
 
@@ -72,8 +120,8 @@
   2. תראה את השגיאה המדויקת
   3. קרא את ה-stack trace
   4. תקן את הבעיה
-  5. push ל-GitHub
-  6. בנייה אוטומטית מחדש!
+
+---
 
 ## 🔧 תיקון בעיות
 
@@ -83,14 +131,13 @@
 2. **לחץ על הריצה הכושלת**
 3. **לחץ על "build"**
 4. **קרא את הלוגים** - תראה בדיוק איפה נכשל
-5. **תקן ו-push מחדש**
 
 ### APK לא עובד?
 
 1. **בדוק ב-Sentry** - יש שם stack trace מלא
 2. **קרא את הלוגים** של הבנייה
-3. **תקן את הבעיה**
-4. **push ל-GitHub** - בנייה אוטומטית!
+
+---
 
 ## 📝 גרסאות זמינות
 
@@ -101,13 +148,16 @@
 | `kivymd` | Kivy + KivyMD | ~20 דקות | `main_test_kivymd.py` + `requirements_kivymd.txt` |
 | `full` | הגרסה המלאה + Telethon | ~30-40 דקות | `main_full.py` + `requirements_full.txt` |
 
-## 🎯 המלצה
+---
 
-1. **התחל עם `crash_test`** - וודא ש-Sentry עובד
-2. **אחר כך `full`** - בנה את הגרסה המלאה
-3. **אם קורסת** - בדוק ב-Sentry ותקן
-4. **push התיקון** - בנייה אוטומטית מחדש
+## 💡 טיפים
+
+- **התחל עם `crash_test`** - וודא ש-Sentry עובד
+- **אחר כך `full`** - בנה את הגרסה המלאה
+- **אם קורסת** - בדוק ב-Sentry ותקן
 
 ---
 
 **זמן חיסכון**: במקום להישאר בדפדפן שעה - עשה push ולך לישון! 😴
+
+**הצלחנו!** 🎉 GitHub Actions עובד אחרי 7 ניסיונות!
