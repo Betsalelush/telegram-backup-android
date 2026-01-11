@@ -972,12 +972,10 @@ class TelegramBackupApp(MDApp):
         
         self.log(f"Settings: Start ID={start_id}, Types={file_types}")
         
-        threading.Thread(target=self._backup_thread, args=(source, target, start_id, file_types), daemon=True).start()
-
-    def _backup_thread(self, source, target, start_id, file_types):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
+        # Use worker loop instead of creating new thread
+        self._start_backup_async(source, target, start_id, file_types)
+    
+    def _start_backup_async(self, source, target, start_id, file_types):
         async def async_backup():
             try:
                 if not self.client.is_connected():
@@ -1150,12 +1148,8 @@ class TelegramBackupApp(MDApp):
                 self.log(error_msg)
                 sentry_sdk.capture_exception(e)
 
-        try:
-            loop.run_until_complete(async_backup())
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-        finally:
-            loop.close()
+        # Run in worker thread's event loop
+        self.run_in_worker(async_backup())
 
 if __name__ == '__main__':
     try:
