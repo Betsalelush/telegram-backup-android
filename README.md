@@ -1,27 +1,31 @@
 # Telegram Backup - Android App v3.0
 
-אפליקציית Android מתקדמת לגיבוי הודעות מטלגרם לערוץ עם תמיכה ב-multi-account וארכיטקטורה מודולרית.
+אפליקציית Android מתקדמת לגיבוי הודעות מטלגרם לערוץ עם תמיכה ב-multi-account.
 
 ---
 
 ## 📊 סטטוס פרויקט
 
-**גרסה נוכחית:** 3.0 (Build #60)  
-**התקדמות:** 8/35 משימות (22.9%)  
-**עודכן לאחרונה:** 12/01/2026
+**גרסה נוכחית:** 3.0 (Build #60 Running, Build #61 Queued)  
+**התקדמות:** 11/35 משימות (31.4%)  
+**עודכן לאחרונה:** 12/01/2026 03:25
 
-### ✅ הושלם
-- Sentry Integration (DEBUG logging, breadcrumbs)
-- Message Skip Handling (deleted, polls, games, service messages)
-- Enhanced Logging
-- AccountManager & ProgressManager
-- Modular Architecture (app/ structure)
-- LoginScreen Module
+### ⚠️ מצב Refactoring
 
-### 🔄 בעבודה
-- BackupScreen Module
-- TransferManager
-- UI Screens
+**סטטוס:** 🔄 בתהליך (חלקי)
+
+**מה הושלם:**
+- ✅ יצירת מודולים חדשים (LoginScreen, BackupScreen, TransferManager)
+- ✅ העברת לוגיקה למודולים
+- ✅ main.py חדש (120 שורות)
+
+**מה חסר:**
+- ❌ KV files (UI layouts)
+- ❌ חיבור UI למודולים
+- ❌ Helper functions במודולים
+- ❌ בדיקות integration
+
+**הקובץ הפעיל:** `main_full.py` (1,202 שורות) - **כל הפונקציות שמורות!**
 
 ---
 
@@ -58,52 +62,44 @@
 
 ## 🏗️ ארכיטקטורה
 
-### מבנה מודולרי (v3.0)
+### מבנה נוכחי (Hybrid)
 
 ```
 telegram-backup-android/
-├── app/                          # קוד האפליקציה
-│   ├── main.py                  # Entry point (100 שורות)
-│   ├── config.py                # הגדרות מרכזיות
-│   ├── managers/                # Business Logic
-│   │   ├── account_manager.py  # ניהול חשבונות (217 שורות)
-│   │   ├── progress_manager.py # מעקב התקדמות (165 שורות)
-│   │   └── transfer_manager.py # העברת הודעות
-│   ├── screens/                 # UI Screens
-│   │   ├── login_screen.py     # Login & Auth (195 שורות)
-│   │   ├── backup_screen.py    # Backup UI
-│   │   └── settings_screen.py  # Settings
-│   ├── utils/                   # Helpers
-│   │   └── logger.py           # Sentry logging (79 שורות)
-│   └── kv/                      # UI Layouts
-│       ├── login.kv
-│       └── backup.kv
-├── data/                         # נתונים
-│   ├── sessions/                # Telegram sessions
-│   ├── progress/                # Transfer progress
-│   ├── accounts.json            # Multi-account data
-│   └── transfers.json           # Transfer history
-├── legacy/                       # קבצים ישנים
-│   └── main_full.py            # (1,202 שורות - deprecated)
-├── .github/workflows/           # CI/CD
-│   └── build-apk.yml           # GitHub Actions
-└── buildozer.spec              # Android build config
+├── main_full.py                 # 🔴 ACTIVE - כל הפונקציות (1,202 שורות)
+├── app/                         # 🟡 IN PROGRESS - מודולים חדשים
+│   ├── main.py                 # Entry point חדש (120 שורות)
+│   ├── config.py               # הגדרות (85 שורות)
+│   ├── managers/
+│   │   ├── account_manager.py  # ✅ (217 שורות)
+│   │   ├── progress_manager.py # ✅ (165 שורות)
+│   │   └── transfer_manager.py # ✅ (173 שורות)
+│   ├── screens/
+│   │   ├── login_screen.py     # ⚠️ לוגיקה בלבד (195 שורות)
+│   │   └── backup_screen.py    # ⚠️ לוגיקה בלבד (370 שורות)
+│   └── utils/
+│       └── logger.py           # ✅ (79 שורות)
+├── data/
+│   ├── sessions/               # Telegram sessions
+│   └── progress/               # Transfer progress
+└── .github/workflows/
+    └── build-apk.yml          # CI/CD
 ```
 
-### יתרונות המבנה החדש
+### מה חסר למודולים:
 
-**לפני (main_full.py):**
-- ❌ 1,202 שורות בקובץ אחד
-- ❌ קשה לתחזק
-- ❌ שגיאות indentation
-- ❌ קשה להוסיף פיצ'רים
-
-**אחרי (Modular):**
-- ✅ 5+ קבצים קטנים (~100-200 שורות כל אחד)
-- ✅ קל לתחזק
-- ✅ פחות שגיאות
-- ✅ קל להוסיף פיצ'רים
-- ✅ Testing מבודד
+```
+app/
+├── kv/                    # ❌ צריך ליצור
+│   ├── login.kv          # UI for LoginScreen
+│   └── backup.kv         # UI for BackupScreen
+├── utils/                 # ⚠️ חלקי
+│   ├── clipboard.py      # ❌ paste_to_field()
+│   └── helpers.py        # ❌ update_progress(), etc.
+└── screens/               # ⚠️ חסר UI
+    ├── login_screen.py   # יש לוגיקה, חסר KV
+    └── backup_screen.py  # יש לוגיקה, חסר KV
+```
 
 ---
 
@@ -120,94 +116,63 @@ telegram-backup-android/
 4. המתן ~10-15 דקות
 5. הורד APK מ-**Artifacts**
 
-#### בנייה אוטומטית:
-- כל `push` ל-`main*.py` → build אוטומטי
-- התראה כש-build מוכן
-
-### אופציה 2: Google Colab
-
-1. פתח [build_apk_colab.ipynb](build_apk_colab.ipynb)
-2. הרץ תאים 1→6
-3. הורד APK
-
-**זמן:** ~60 דקות  
-⚠️ אל תסגור דפדפן!
+**Build #60:** 🔄 Running - עם main_full.py (כל הפונקציות!)  
+**Build #61:** ⏳ Queued - עם app/main.py (ארכיטקטורה חדשה)
 
 ---
 
-## 📋 תוכנית פיתוח (MASTER_PLAN)
+## 📋 תוכנית פיתוח
 
-### Phase 0: הכנה ✅
+### Phase 0-1: הכנה ותשתית ✅
 - [x] Sentry Configuration
 - [x] Project Cleanup
-- [x] Message Skip Handling
-
-### Phase 1: תשתית ✅
-- [x] Hebrew Support
 - [x] Directory Structure
 - [x] Configuration Management
 
-### Phase 2: Account Management (בעבודה)
-- [x] AccountManager Class
-- [x] LoginScreen Module
-- [ ] Accounts Screen UI
-- [ ] Login Flow Integration
+### Phase 2: Refactoring (בתהליך) 🔄
+- [x] LoginScreen Module (לוגיקה)
+- [x] BackupScreen Module (לוגיקה)
+- [x] TransferManager Module
+- [x] New Main Entry Point
+- [ ] KV Files (UI)
+- [ ] Helper Functions
+- [ ] Integration Testing
 
-### Phase 3: Transfer Management (הבא)
-- [x] ProgressManager Class
-- [ ] TransferManager Class
-- [ ] BackupScreen Module
-- [ ] Transfer Screen UI
-
-### Phase 4-7: (מתוכנן)
-- Multi-account UI
-- Settings & Preferences
-- Testing & Optimization
-- Documentation
-
-**פירוט מלא:** ראה artifacts/MASTER_PLAN.md
+### Phase 3-7: (מתוכנן)
+- [ ] Multi-account UI
+- [ ] Settings & Preferences
+- [ ] Testing & Optimization
+- [ ] Documentation
 
 ---
 
-## 🔧 Refactoring Status
+## 🔧 מצב נוכחי
 
-### Phase 1: LoginScreen ✅
-**הושלם:** 12/01/2026
-- ✅ `app/screens/login_screen.py` (195 שורות)
-- ✅ send_code() + login() + disconnect()
-- ✅ Breadcrumbs & error handling
-- ✅ py_compile verified
+### ✅ מה עובד (main_full.py):
+- Login flow (send_code, login, 2FA)
+- Backup functions
+- Progress tracking
+- Rate limiting
+- Message skip handling
+- Sentry logging
+- **כל הפונקציות!**
 
-### Phase 2: BackupScreen (בעבודה)
-**משוער:** ~45 דקות
-- [ ] `app/screens/backup_screen.py`
-- [ ] start_backup() + stop_backup()
-- [ ] Progress tracking
-- [ ] UI updates
-
-### Phase 3: TransferManager (הבא)
-- [ ] `app/managers/transfer_manager.py`
-- [ ] transfer_message()
-- [ ] Rate limiting
-- [ ] Smart delay
-
-### Phase 4: New Main Entry
-- [ ] `app/main.py` (100 שורות)
-- [ ] Screen manager
-- [ ] Minimal entry point
-
-**פירוט מלא:** ראה artifacts/refactoring_plan.md
+### 🔄 מה בתהליך (app/):
+- מודולים עם לוגיקה
+- ללא UI (KV files)
+- לא מחובר למסכים
+- צריך השלמה
 
 ---
 
 ## 📊 Build History
 
-| Build | Status | Notes |
-|-------|--------|-------|
-| #60 | 🔄 Running | **FULL FEATURED!** All improvements |
-| #59 | ❌ Failed | Syntax errors |
-| #57 | ✅ Success | Restored working version |
-| #48 | ✅ Success | Last before improvements |
+| Build | Status | Version | Notes |
+|-------|--------|---------|-------|
+| #61 | ⏳ Queued | app/main.py | ארכיטקטורה חדשה (חלקי) |
+| #60 | 🔄 Running | main_full.py | **כל הפונקציות!** |
+| #59 | ❌ Failed | - | Syntax errors |
+| #57 | ✅ Success | main_full.py | Restored version |
 
 ---
 
@@ -226,41 +191,18 @@ telegram-backup-android/
 
 ---
 
-## 🔧 הגדרה
+## ⚠️ הערות חשובות
 
-### 1. Sentry (אופציונלי)
-```python
-# sentry_logger.py
-sentry_sdk.init(
-    dsn="YOUR_DSN_HERE",
-    traces_sample_rate=1.0
-)
-```
+### Refactoring Status:
+1. **main_full.py עדיין פעיל** - כל הפונקציות שמורות
+2. **המודולים החדשים** - יש לוגיקה אבל לא UI
+3. **Build #60** - משתמש ב-main_full.py (מומלץ!)
+4. **Build #61** - ינסה app/main.py (עלול להיכשל)
 
-### 2. Telegram API
-1. קבל credentials מ-[my.telegram.org](https://my.telegram.org)
-2. הזן ב-app בהרצה ראשונה
-
----
-
-## 🎯 תכונות מתוכננות
-
-### קצר טווח (שבוע)
-- [ ] BackupScreen Module
-- [ ] TransferManager
-- [ ] Complete refactoring
-
-### בינוני טווח (חודש)
-- [ ] Multi-account UI
-- [ ] AccountsScreen
-- [ ] TransferScreen
-- [ ] Settings Screen
-
-### ארוך טווח (3 חודשים)
-- [ ] Media albums support
-- [ ] Export/Import settings
-- [ ] Scheduled backups
-- [ ] Cloud sync
+### המלצה:
+- **להשתמש ב-Build #60** (main_full.py) - עובד!
+- **להמשיך Refactoring** בהדרגה
+- **לא למחוק main_full.py** עד שהמודולים מוכנים
 
 ---
 
@@ -277,16 +219,10 @@ sentry_sdk.init(
 
 ## 📚 מסמכים נוספים
 
-### Artifacts (במחשב המפתח)
-- `MASTER_PLAN.md` - תוכנית מפורטת (35 משימות)
+### Artifacts
+- `MASTER_PLAN.md` - תוכנית מפורטת
 - `task.md` - מעקב משימות
-- `refactoring_plan.md` - תוכנית refactoring
-- `improvements_plan.md` - שיפורים שנוספו
-- `project_status_analysis.md` - ניתוח מצב
-
-### GitHub
-- `GITHUB_ACTIONS.md` - מדריך CI/CD
-- `COLAB_VS_GITHUB.md` - השוואת שיטות build
+- `refactoring_verification.md` - אימות Refactoring
 
 ---
 
@@ -296,24 +232,7 @@ MIT License
 
 ---
 
-## 🙏 תודות
-
-- [Kivy](https://kivy.org/) - Python UI framework
-- [KivyMD](https://kivymd.readthedocs.io/) - Material Design
-- [Telethon](https://docs.telethon.dev/) - Telegram client
-- [Sentry](https://sentry.io/) - Error tracking
-- [Buildozer](https://buildozer.readthedocs.io/) - Android packaging
-
----
-
-## 📞 קשר
-
-**Repository:** [telegram-backup-android](https://github.com/Betsalelush/telegram-backup-android)  
-**Issues:** [GitHub Issues](https://github.com/Betsalelush/telegram-backup-android/issues)  
-**Sentry:** [bubababa.sentry.io](https://bubababa.sentry.io/issues/)
-
----
-
-**עודכן:** 12/01/2026 03:07  
-**גרסה:** 3.0 (Build #60)  
-**סטטוס:** 🔄 Active Development
+**עודכן:** 12/01/2026 03:25  
+**גרסה:** 3.0  
+**סטטוס:** 🔄 Refactoring In Progress  
+**Build פעיל:** #60 (main_full.py)
