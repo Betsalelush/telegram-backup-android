@@ -90,7 +90,9 @@ jobs:
           autoconf \
           automake \
           libtool \
+          libtool-bin \
           pkg-config \
+          pkg-config-macros \
           zlib1g-dev \
           libncurses5-dev \
           libncursesw5-dev \
@@ -100,6 +102,12 @@ jobs:
           ccache
         
         echo "✅ תלויות מערכת הותקנו"
+        
+        # Update autoconf files to fix macro issues
+        echo "🔧 מעדכן autoconf macros..."
+        sudo autoupdate || true
+        
+        echo "✅ autoconf macros עודכנו"
     
     #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # שלב 4: התקנת תלויות Python - גרסאות קבועות!
