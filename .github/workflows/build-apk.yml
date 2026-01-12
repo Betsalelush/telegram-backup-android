@@ -178,21 +178,23 @@ jobs:
       run: |
         echo "🔍 מחפש APK..."
         
-        # Search for APK in multiple locations
-        APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
+        # Search for APK in multiple possible locations
+        APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
         
-        if [ -n "$APK_PATH" ]; then
-          echo "✅ נמצא APK: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          
-          # Get APK info
-          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          echo "📦 גודל APK: $APK_SIZE"
-          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
-        else
+        if [ -z "$APK_PATH" ]; then
           echo "❌ APK לא נמצא!"
+          echo "📂 מחפש בכל המיקומים:"
+          find . -name "*.apk" -type f 2>/dev/null || echo "אין קבצי APK"
           exit 1
         fi
+        
+        echo "✅ נמצא APK: $APK_PATH"
+        echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+        
+        # Get APK info
+        APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+        echo "📦 גודל APK: $APK_SIZE"
+        echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
     
     - name: 📤 Upload APK
       uses: actions/upload-artifact@v4
