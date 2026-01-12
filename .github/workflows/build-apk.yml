@@ -1,205 +1,29 @@
-name: Build Android APK v3.0
+name: Build Android APK (Docker)
 
 on:
   push:
     branches: [ master ]
   workflow_dispatch:
 
-env:
-  # גרסאות קבועות למניעת התנגשויות
-  PYTHON_VERSION: '3.11'
-  BUILDOZER_VERSION: '1.5.0'
-  CYTHON_VERSION: '0.29.36'
-  ANDROID_API: '33'
-  ANDROID_NDK: 'r25c'
-
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-    
-    - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: 💾 Cache pip packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: pip-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements_full.txt') }}
-        restore-keys: |
-          pip-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
-          pip-${{ runner.os }}-
-    
-    - name: 💾 Cache Buildozer global directory
-      uses: actions/cache@v4
-      with:
-        path: ~/.buildozer
-        key: buildozer-global-${{ runner.os }}-${{ env.BUILDOZER_VERSION }}
-        restore-keys: |
-          buildozer-global-${{ runner.os }}-
-    
-    - name: 💾 Cache Buildozer directory
-      uses: actions/cache@v4
-      with:
-        path: .buildozer
-        key: buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-
-          buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-
-          buildozer-v2-${{ runner.os }}-
-    
-    - name: 📦 Install system dependencies
-      run: |
-        echo "📦 מתקין תלויות מערכת..."
-        sudo apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y -qq \
-          build-essential \
-          git \
-          zip \
-          unzip \
-          openjdk-17-jdk \
-          autoconf \
-          automake \
-          libtool \
-          libtool-bin \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          cmake \
-          libffi-dev \
-          libssl-dev \
-          ccache
-        
-        # Set LIBTOOL environment variable to fix autoconf issues
-        echo "LIBTOOL=libtool" >> $GITHUB_ENV
-        echo "ACLOCAL_PATH=/usr/share/aclocal" >> $GITHUB_ENV
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-        echo "✅ תלויות מערכת הותקנו"
-        
-        # Update autoconf files to fix macro issues
-        echo "🔧 מעדכן autoconf macros..."
-        sudo autoupdate || true
-        
-        echo "✅ autoconf macros עודכנו - ומוכנים לריצה"
+      - name: 🔨 Build with Buildozer (Docker)
+        uses: ArtemSBulgakov/buildozer-action-v1
+        id: buildozer
+        with:
+          command: buildozer android debug
+          buildozer_version: stable
+          workdir: .
 
-    - name: 🐍 Install Python dependencies (Fixed Versions)
-      run: |
-        echo "🐍 מתקין תלויות Python עם גרסאות קבועות..."
-        
-        python -m pip install --upgrade pip setuptools wheel
-        pip install Cython==${{ env.CYTHON_VERSION }}
-        pip install buildozer==${{ env.BUILDOZER_VERSION }}
-        pip install -r requirements_full.txt
-        
-        echo "✅ כל התלויות הותקנו"
-
-    - name: ⚙️ Configure environment
-      run: |
-        echo "⚙️ מגדיר סביבת Build..."
-        export CYTHON_LANGUAGE_LEVEL=3
-        export ANDROID_HOME=/usr/local/lib/android/sdk
-        export ANDROID_SDK_ROOT=$ANDROID_HOME
-        export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        mkdir -p bin
-        mkdir -p .buildozer
-        echo "✅ סביבה הוגדרה בהצלחה"
-    
-    - name: 🔨 Build APK with Buildozer
-      run: |
-        echo "🔨 מתחיל תהליך בניית APK"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        buildozer -v android debug 2>&1 | tee build.log
-        echo "✅ APK נבנה בהצלחה."
-
-    - name: 🔍 Find APK (Debug Mode)
-      id: find_apk
-      run: |
-        echo "🔍 מחפש קובץ APK..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Show current directory
-        echo "📂 תיקייה נוכחית: $(pwd)"
-        echo ""
-        
-        # List root directory
-        echo "📋 קבצים בתיקייה הראשית:"
-        ls -lah
-        echo ""
-        
-        # Search for ALL APK files
-        echo "🔍 מחפש כל קבצי APK:"
-        find . -name "*.apk" -type f 2>/dev/null || echo "לא נמצאו קבצי APK"
-        echo ""
-        
-        # Check bin directory
-        echo "📂 בודק תיקיית bin/:"
-        if [ -d "bin" ]; then
-          ls -lah bin/
-        else
-          echo "תיקיית bin/ לא קיימת"
-        fi
-        echo ""
-        
-        # Check .buildozer directory structure
-        echo "📂 בודק מבנה .buildozer/:"
-        if [ -d ".buildozer" ]; then
-          echo "תיקיית .buildozer/ קיימת"
-          find .buildozer -name "*.apk" 2>/dev/null | head -20
-        else
-          echo "תיקיית .buildozer/ לא קיימת"
-        fi
-        echo ""
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Try to find APK in buildozer output directories ONLY
-        echo "🔍 מחפש APK במיקומי buildozer..."
-        APK_PATH=$(find .buildozer/android/platform/build-*/outputs/apk/ -name "*.apk" -type f 2>/dev/null | head -n 1)
-        
-        if [ -z "$APK_PATH" ]; then
-          echo "⚠️ לא נמצא ב-outputs, מחפש ב-bin/..."
-          APK_PATH=$(find bin/ -name "*.apk" -type f 2>/dev/null | head -n 1)
-        fi
-        
-        if [ -z "$APK_PATH" ]; then
-          echo "⚠️ לא נמצא ב-bin, מחפש בכל .buildozer/..."
-          APK_PATH=$(find .buildozer -name "*.apk" -type f 2>/dev/null | head -n 1)
-        fi
-        
-        if [ -z "$APK_PATH" ]; then
-          echo "❌ APK לא נמצא! buildozer כנראה לא בנה APK."
-          echo "📋 בודק build.log לשגיאות..."
-          if [ -f "build.log" ]; then
-            echo "=== 50 שורות אחרונות מ-build.log ==="
-            tail -50 build.log
-          fi
-          exit 1
-        fi
-        
-        echo "✅ נמצא APK: $APK_PATH"
-        echo "file_path=$APK_PATH" >> $GITHUB_OUTPUT
-        APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-        echo "📦 גודל APK: $APK_SIZE"
-        echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
-      
-    - name: 📤 Upload File
-      uses: actions/upload-artifact@v4
-      with:
-        name: telegram-backup-v3.0-${{ github.run_number }}
-        path: ${{ steps.find_apk.outputs.file_path }}
-        if-no-files-found: error
-        retention-days: 30
-
-    - name: 📊 Build Summary
-      if: always()
-      run: |
-        echo "📊 סיכום Build:"
-        echo "🐍 Python: ${{ env.PYTHON_VERSION }}"
-        echo "🔨 Buildozer Version: ${{ env.BUILDOZER_VERSION }}"
+      - name: 📤 Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-backup-apk
+          path: bin/*.apk
+          retention-days: 30
