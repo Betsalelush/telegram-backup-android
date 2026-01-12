@@ -33,32 +33,81 @@ jobs:
     
     - name: 📄 Copy version files
       run: |
+        set -e  # Exit on error
+        
         VERSION=$VERSION
         
         case $VERSION in
           crash_test)
-            cp main_crash_test.py main.py
-            cp requirements_crash_test.txt requirements.txt
+            if [ -f "old_versions/main_crash_test.py" ]; then
+              cp old_versions/main_crash_test.py main.py
+            else
+              echo "❌ Error: main_crash_test.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_crash_test.txt" ]; then
+              cp old_versions/requirements_crash_test.txt requirements.txt
+            else
+              echo "❌ Error: requirements_crash_test.txt not found"
+              exit 1
+            fi
             TITLE="Crash Test"
             PACKAGE="crashtest"
             ;;
           basic)
-            cp main_test_basic.py main.py
-            cp requirements_basic.txt requirements.txt
+            if [ -f "old_versions/main_test_basic.py" ]; then
+              cp old_versions/main_test_basic.py main.py
+            else
+              echo "❌ Error: main_test_basic.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_basic.txt" ]; then
+              cp old_versions/requirements_basic.txt requirements.txt
+            else
+              echo "❌ Error: requirements_basic.txt not found"
+              exit 1
+            fi
             TITLE="Test Basic"
             PACKAGE="testbasic"
             ;;
           kivymd)
-            cp main_test_kivymd.py main.py
-            cp requirements_kivymd.txt requirements.txt
+            if [ -f "old_versions/main_test_kivymd.py" ]; then
+              cp old_versions/main_test_kivymd.py main.py
+            else
+              echo "❌ Error: main_test_kivymd.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_kivymd.txt" ]; then
+              cp old_versions/requirements_kivymd.txt requirements.txt
+            else
+              echo "❌ Error: requirements_kivymd.txt not found"
+              exit 1
+            fi
             TITLE="Test KivyMD"
             PACKAGE="testkivymd"
             ;;
           full)
-            cp main_full.py main.py
-            cp requirements_full.txt requirements.txt
+            # Try app/main.py first, then old_versions/main_full.py
+            if [ -f "app/main.py" ]; then
+              cp app/main.py main.py
+            elif [ -f "old_versions/main_full.py" ]; then
+              cp old_versions/main_full.py main.py
+            else
+              echo "❌ Error: main.py not found in app/ or old_versions/"
+              exit 1
+            fi
+            if [ -f "requirements_full.txt" ]; then
+              cp requirements_full.txt requirements.txt
+            else
+              echo "❌ Error: requirements_full.txt not found"
+              exit 1
+            fi
             TITLE="Telegram Backup"
             PACKAGE="telegrambackup"
+            ;;
+          *)
+            echo "❌ Error: Unknown version: $VERSION"
+            exit 1
             ;;
         esac
         
@@ -68,6 +117,9 @@ jobs:
         echo "✅ Copied files for version: $VERSION"
         echo "📱 App title: $TITLE"
         echo "📦 Package: $PACKAGE"
+        echo "📄 Files copied:"
+        ls -lh main.py requirements.txt
+    
     
     - name: 🔨 Create buildozer.spec
       run: |

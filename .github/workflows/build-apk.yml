@@ -73,29 +73,34 @@ jobs:
         echo "✅ autotools עודכן!"
     - name: 📱 Setup Android SDK
       run: |
+        set -e  # Exit on error
         echo "📱 מתקין Android SDK command-line tools..."
         
         # יצירת תיקיות
-        mkdir -p ~/.buildozer/android/platform/android-sdk
-        cd ~/.buildozer/android/platform/android-sdk
+        SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+        mkdir -p "$SDK_DIR"
         
         # הורדת command-line tools
+        cd "$SDK_DIR"
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip
         rm commandlinetools-linux-11076708_latest.zip
         
-        # ארגון מבנה תיקיות
+        # ארגון מבנה תיקיות - fix the mv command
         mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+        # Move contents, not the directory itself
+        if [ -d "cmdline-tools/bin" ]; then
+          mv cmdline-tools/bin cmdline-tools/lib cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
+        fi
         
         # יצירת symlink ל-tools/bin כדי שbuildozer ימצא את sdkmanager
         mkdir -p tools/bin
-        ln -s ../../cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
-        ln -s ../../cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager
+        ln -sf ../../cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
+        ln -sf ../../cmdline-tools/latest/bin/avdmanager tools/bin/avdmanager
         
         # הגדרת משתני סביבה
-        echo "ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
+        echo "PATH=$SDK_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
         
         # אישור רישיונות
         mkdir -p licenses
@@ -103,17 +108,31 @@ jobs:
         echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> licenses/android-sdk-license
         
         echo "✅ Android SDK הותקן בהצלחה!"
+        echo "📍 SDK location: $SDK_DIR"
         echo "📍 sdkmanager location: $(which sdkmanager || echo 'not in PATH')"
-        echo "📍 symlink created: $(ls -la tools/bin/sdkmanager || echo 'failed')"
+    
     
     - name: 🔧 Install Buildozer
       run: |
         pip install --upgrade pip
         pip install --upgrade buildozer python-for-android
-        pip install cython==0.29.33
+        # Use Cython 0.29.36 for better compatibility with pyjnius
+        pip install cython==0.29.36
     
     - name: 🔧 Set Cython Language Level
       run: echo "CYTHON_LANGUAGE_LEVEL=3" >> $GITHUB_ENV
+    
+    - name: 🔧 Configure NDK and Clang
+      run: |
+        # Set NDK environment variables for compatibility
+        echo "ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk" >> $GITHUB_ENV
+        # Disable unsupported Clang flags
+        echo "CFLAGS=-Wno-error=unused-command-line-argument" >> $GITHUB_ENV
+        echo "CXXFLAGS=-Wno-error=unused-command-line-argument" >> $GITHUB_ENV
+        # Set proper toolchain
+        echo "TOOLCHAIN=clang" >> $GITHUB_ENV
+        echo "✅ NDK and Clang environment configured"
+    
     
     - name: 📦 Upgrade Build Tools
       run: |
@@ -121,28 +140,47 @@ jobs:
     
     - name: 📦 Install and Patch pyjnius
       run: |
-        echo "📥 מוריד pyjnius..."
-        pip download pyjnius==1.5.0 --no-deps --dest /tmp --no-binary :all:
-        cd /tmp
-        tar -xzf pyjnius-*.tar.gz
+        set -e  # Exit on error
         
-        # בחירת התיקייה המחולצת
-        extracted_dir=$(find . -maxdepth 1 -type d -name 'pyjnius-*' | head -n 1)
-        cd "$extracted_dir"
+        echo "📥 Downloading pyjnius..."
+        # Use newer version 1.6.1 which has better Cython 3.x compatibility
+        pip download pyjnius==1.6.1 --no-deps --dest /tmp --no-binary :all:
         
-        echo "🔧 מתקן את קבצי pyjnius (Python long → int)..."
-        # תיקון רק Python long, לא C types
+        # Navigate to temp directory
+        pushd /tmp > /dev/null
+        
+        echo "📦 Extracting pyjnius..."
+        # Extract the tar.gz file
+        tar -xzf pyjnius-1.6.1.tar.gz
+        
+        # Navigate to extracted directory
+        pushd pyjnius-1.6.1 > /dev/null
+        
+        echo "🔧 Patching pyjnius for Python 3 and Cython compatibility..."
+        
+        # Fix Python 2/3 compatibility - replace 'long' with 'int'
+        # Only in Python code, not in C type declarations
+        find jnius -type f \( -name "*.pxi" -o -name "*.pyx" -o -name "*.py" \) -exec sed -i \
+          -e 's/\bisinstance(\([^,)]*\),\s*long)/isinstance(\1, int)/g' \
+          -e 's/\b(int,\s*long)/(int,)/g' \
+          -e 's/\blong,\s*int\b/int/g' \
+          {} + 2>/dev/null || true
+        
+        # Fix deprecated Cython IF statements if they exist
+        # Replace compile-time IF with DEF or regular if
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
-          -e 's/isinstance(\([^,]*\), long)/isinstance(\1, int)/g' \
-          -e 's/, long)/, int)/g' \
-          -e 's/(long)/(int)/g' \
-          -e 's/\[long\]/[int]/g' \
-          {} +
+          -e 's/^\(\s*\)IF /\1DEF /g' \
+          -e 's/^\(\s*\)ELIF /\1DEF /g' \
+          -e 's/^\(\s*\)ELSE:/\1pass  # ELSE removed/g' \
+          {} + 2>/dev/null || true
         
-        echo "📦 מתקין את pyjnius המתוקן..."
-        pip install .
+        echo "📦 Installing patched pyjnius..."
+        pip install . --no-build-isolation
         
-        echo "✅ pyjnius מותקן ומתוקן!"
+        popd > /dev/null
+        popd > /dev/null
+        
+        echo "✅ pyjnius installed and patched successfully!"
     
     
     - name: 🎯 Select version
@@ -162,34 +200,82 @@ jobs:
     
     - name: 📄 Copy version files
       run: |
+        set -e  # Exit on error
+        
         # שימוש במשתני סביבה רגילים
         VERSION=$VERSION
         
         case $VERSION in
           crash_test)
-            cp main_crash_test.py main.py
-            cp requirements_crash_test.txt requirements.txt
+            if [ -f "old_versions/main_crash_test.py" ]; then
+              cp old_versions/main_crash_test.py main.py
+            else
+              echo "❌ Error: main_crash_test.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_crash_test.txt" ]; then
+              cp old_versions/requirements_crash_test.txt requirements.txt
+            else
+              echo "❌ Error: requirements_crash_test.txt not found"
+              exit 1
+            fi
             TITLE="Crash Test"
             PACKAGE="crashtest"
             ;;
           basic)
-            cp main_test_basic.py main.py
-            cp requirements_basic.txt requirements.txt
+            if [ -f "old_versions/main_test_basic.py" ]; then
+              cp old_versions/main_test_basic.py main.py
+            else
+              echo "❌ Error: main_test_basic.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_basic.txt" ]; then
+              cp old_versions/requirements_basic.txt requirements.txt
+            else
+              echo "❌ Error: requirements_basic.txt not found"
+              exit 1
+            fi
             TITLE="Test Basic"
             PACKAGE="testbasic"
             ;;
           kivymd)
-            cp main_test_kivymd.py main.py
-            cp requirements_kivymd.txt requirements.txt
+            if [ -f "old_versions/main_test_kivymd.py" ]; then
+              cp old_versions/main_test_kivymd.py main.py
+            else
+              echo "❌ Error: main_test_kivymd.py not found"
+              exit 1
+            fi
+            if [ -f "old_versions/requirements_kivymd.txt" ]; then
+              cp old_versions/requirements_kivymd.txt requirements.txt
+            else
+              echo "❌ Error: requirements_kivymd.txt not found"
+              exit 1
+            fi
             TITLE="Test KivyMD"
             PACKAGE="testkivymd"
             ;;
           full)
             # New modular architecture - use app/main.py
-            cp app/main.py main.py
-            cp requirements_full.txt requirements.txt
+            if [ -f "app/main.py" ]; then
+              cp app/main.py main.py
+            elif [ -f "old_versions/main_full.py" ]; then
+              cp old_versions/main_full.py main.py
+            else
+              echo "❌ Error: main.py not found in app/ or old_versions/"
+              exit 1
+            fi
+            if [ -f "requirements_full.txt" ]; then
+              cp requirements_full.txt requirements.txt
+            else
+              echo "❌ Error: requirements_full.txt not found"
+              exit 1
+            fi
             TITLE="Telegram Backup"
             PACKAGE="telegrambackup"
+            ;;
+          *)
+            echo "❌ Error: Unknown version: $VERSION"
+            exit 1
             ;;
         esac
         
@@ -199,6 +285,9 @@ jobs:
         echo "✅ Copied files for version: $VERSION"
         echo "📱 App title: $TITLE"
         echo "📦 Package: $PACKAGE"
+        echo "📄 Files copied:"
+        ls -lh main.py requirements.txt
+    
     
     - name: 🔨 Create buildozer.spec
       run: |
