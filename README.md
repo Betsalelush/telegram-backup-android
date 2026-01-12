@@ -141,6 +141,29 @@ python app/main.py
 
 ---
 
+## 🔧 Build Fixes
+
+### Cython Language Level Issue
+
+**בעיה:**
+- Builds נכשלו בגלל Cython defaulting ל-Python 2
+- שגיאה: `language_level not set, using 2 for now (Py2)`
+
+**פתרון:**
+עדכנו את `.github/workflows/build-apk.yml`:
+```yaml
+- name: 🔧 Set Cython Language Level
+  run: echo "CYTHON_LANGUAGE_LEVEL=3" >> $GITHUB_ENV
+
+- name: 📦 Upgrade Build Tools
+  run: |
+    pip install --upgrade setuptools wheel cython
+```
+
+**סטטוס:** ✅ תוקן בגרסה 3.0
+
+---
+
 ## 💡 שימוש
 
 ### הגדרה ראשונית
