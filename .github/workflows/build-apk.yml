@@ -125,10 +125,10 @@ jobs:
         buildozer -v android debug 2>&1 | tee build.log
         echo "✅ APK נבנה בהצלחה."
 
-    - name: 🔍 Find APK or ZIP (Debug Mode)
+    - name: 🔍 Find APK (Debug Mode)
       id: find_apk
       run: |
-        echo "🔍 מחפש קובץ APK או ZIP..."
+        echo "🔍 מחפש קובץ APK..."
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         # Show current directory
@@ -145,11 +145,6 @@ jobs:
         find . -name "*.apk" -type f 2>/dev/null || echo "לא נמצאו קבצי APK"
         echo ""
         
-        # Search for ALL ZIP files
-        echo "🔍 מחפש כל קבצי ZIP:"
-        find . -name "*.zip" -type f 2>/dev/null || echo "לא נמצאו קבצי ZIP"
-        echo ""
-        
         # Check bin directory
         echo "📂 בודק תיקיית bin/:"
         if [ -d "bin" ]; then
@@ -163,7 +158,7 @@ jobs:
         echo "📂 בודק מבנה .buildozer/:"
         if [ -d ".buildozer" ]; then
           echo "תיקיית .buildozer/ קיימת"
-          find .buildozer -name "*.apk" -o -name "*.zip" 2>/dev/null | head -20
+          find .buildozer -name "*.apk" 2>/dev/null | head -20
         else
           echo "תיקיית .buildozer/ לא קיימת"
         fi
@@ -171,19 +166,35 @@ jobs:
         
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
-        # Try to find APK (any location)
-        FILE_PATH=$(find . -type f \( -name "*.apk" -o -name "*.zip" \) 2>/dev/null | head -n 1)
+        # Try to find APK in buildozer output directories ONLY
+        echo "🔍 מחפש APK במיקומי buildozer..."
+        APK_PATH=$(find .buildozer/android/platform/build-*/outputs/apk/ -name "*.apk" -type f 2>/dev/null | head -n 1)
         
-        if [ -z "$FILE_PATH" ]; then
-          echo "❌ קובץ APK או ZIP לא נמצא בכלל!"
+        if [ -z "$APK_PATH" ]; then
+          echo "⚠️ לא נמצא ב-outputs, מחפש ב-bin/..."
+          APK_PATH=$(find bin/ -name "*.apk" -type f 2>/dev/null | head -n 1)
+        fi
+        
+        if [ -z "$APK_PATH" ]; then
+          echo "⚠️ לא נמצא ב-bin, מחפש בכל .buildozer/..."
+          APK_PATH=$(find .buildozer -name "*.apk" -type f 2>/dev/null | head -n 1)
+        fi
+        
+        if [ -z "$APK_PATH" ]; then
+          echo "❌ APK לא נמצא! buildozer כנראה לא בנה APK."
+          echo "📋 בודק build.log לשגיאות..."
+          if [ -f "build.log" ]; then
+            echo "=== 50 שורות אחרונות מ-build.log ==="
+            tail -50 build.log
+          fi
           exit 1
         fi
         
-        echo "✅ נמצא קובץ: $FILE_PATH"
-        echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
-        FILE_SIZE=$(du -h "$FILE_PATH" | cut -f1)
-        echo "📦 גודל הקובץ: $FILE_SIZE"
-        echo "apk_size=$FILE_SIZE" >> $GITHUB_OUTPUT
+        echo "✅ נמצא APK: $APK_PATH"
+        echo "file_path=$APK_PATH" >> $GITHUB_OUTPUT
+        APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+        echo "📦 גודל APK: $APK_SIZE"
+        echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
       
     - name: 📤 Upload File
       uses: actions/upload-artifact@v4
