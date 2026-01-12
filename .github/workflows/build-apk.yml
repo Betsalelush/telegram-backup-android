@@ -130,13 +130,9 @@ jobs:
         extracted_dir=$(find . -maxdepth 1 -type d -name 'pyjnius-*' | head -n 1)
         cd "$extracted_dir"
         
-        echo "🔧 מתקן את jnius_utils.pxi..."
-        sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' jnius/jnius_utils.pxi
-        sed -i 's/, long)/, int)/g' jnius/jnius_utils.pxi
-        
-        echo "🔧 מתקן את jnius_conversion.pxi..."
-        sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' jnius/jnius_conversion.pxi
-        sed -i 's/, long)/, int)/g' jnius/jnius_conversion.pxi
+        echo "🔧 מתקן את כל קבצי pyjnius (long → int)..."
+        # תיקון כל קבצי .pxi ו-.pyx
+        find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i 's/\blong\b/int/g' {} +
         
         echo "📦 מתקין את pyjnius המתוקן..."
         pip install .
