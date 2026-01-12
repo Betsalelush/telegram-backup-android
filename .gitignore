@@ -32,3 +32,9 @@ fix_recipe*.py
 build_docker.sh
 setup_buildozer.sh
 get-docker.sh
+
+# Data files (exclude user data but keep structure)
+data/sessions/*
+data/progress/*
+!data/sessions/.gitkeep
+!data/progress/.gitkeep
