@@ -9,9 +9,12 @@ on:
     branches:
       - master
     paths:
-      - 'main*.py'
+      - 'app/**/*.py'
+      - 'legacy/**/*.py'
+      - 'main.py'
       - 'requirements*.txt'
       - 'buildozer.spec'
+      - 'tests/**/*.py'
 
 jobs:
   test:
@@ -29,8 +32,40 @@ jobs:
     - name: 🔍 Check Python syntax
       run: |
         echo "🔍 בודק syntax של קבצי Python..."
+        
+        # Test main entry point
         python -m py_compile main.py
-        python -m py_compile main_*.py
+        
+        # Test app modules
+        echo "  - בודק app/config.py"
+        python -m py_compile app/config.py
+        echo "  - בודק app/main.py"
+        python -m py_compile app/main.py
+        
+        # Test managers
+        echo "  - בודק managers..."
+        python -m py_compile app/managers/__init__.py
+        python -m py_compile app/managers/account_manager.py
+        python -m py_compile app/managers/progress_manager.py
+        python -m py_compile app/managers/transfer_manager.py
+        
+        # Test screens
+        echo "  - בודק screens..."
+        python -m py_compile app/screens/__init__.py
+        python -m py_compile app/screens/login_screen.py
+        python -m py_compile app/screens/backup_screen.py
+        
+        # Test utils
+        echo "  - בודק utils..."
+        python -m py_compile app/utils/__init__.py
+        python -m py_compile app/utils/logger.py
+        python -m py_compile app/utils/clipboard.py
+        python -m py_compile app/utils/helpers.py
+        
+        # Test legacy files
+        echo "  - בודק legacy files..."
+        python -m py_compile legacy/main*.py
+        
         echo "✅ כל הקבצים תקינים!"
     
     - name: 📦 Validate requirements files
@@ -62,6 +97,12 @@ jobs:
         done
         
         echo "✅ buildozer.spec תקין!"
+    
+    - name: 🧪 Run structure tests
+      run: |
+        echo "🧪 מריץ בדיקות מבנה..."
+        python tests/test_structure.py
+        echo "✅ בדיקות מבנה עברו בהצלחה!"
     
     - name: 🎉 All checks passed
       run: |
