@@ -286,8 +286,13 @@ jobs:
       with:
         # שימוש ב-output מהצעד הקודם במקום env context
         name: apk-${{ steps.get_version.outputs.version }}-${{ github.sha }}
-        path: bin/*.apk
+        path: |
+          bin/*.apk
+          .buildozer/android/platform/build-arm64-v8a/dists/*/bin/*.apk
+          .buildozer/android/platform/build-armeabi-v7a/dists/*/bin/*.apk
+          **/*.apk
         retention-days: 30
+        if-no-files-found: warn
     
     - name: 🎉 Build complete
       run: |
