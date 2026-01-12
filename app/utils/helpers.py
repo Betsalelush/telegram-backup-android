@@ -1,105 +1,235 @@
-# -*- coding: utf-8 -*-
 """
-Helper Functions
-UI update and utility functions
+Helper utilities for channels, file types, and media
 """
+import re
+from typing import List, Dict, Optional
+from telethon import TelegramClient
+from telethon.tl.types import Channel, Chat
 
-import time
-import logging
-from kivy.clock import Clock
-
-logger = logging.getLogger(__name__)
+from .logger import logger, add_breadcrumb
 
 
-def log_message(screen, message):
+async def list_available_chats(client: TelegramClient) -> List[Dict]:
     """
-    Add message to log
+    List all available chats/channels
     
     Args:
-        screen: Screen instance with log widget
-        message: Message to log
-    """
-    def update_log(dt):
-        current = screen.ids.log.text
-        screen.ids.log.text = f"{current}\n{message}"
-    
-    Clock.schedule_once(update_log)
-    logger.info(message)
-
-
-def update_status(screen, text, color="Primary"):
-    """
-    Update status label
-    
-    Args:
-        screen: Screen instance with status widget
-        text: Status text
-        color: Theme color ("Primary", "Secondary", "Error")
-    """
-    def update(dt):
-        screen.ids.status.text = text
-        screen.ids.status.theme_text_color = color
-    
-    Clock.schedule_once(update)
-
-
-def update_progress(screen, processed, total, start_time):
-    """
-    Update progress bar and stats
-    
-    Args:
-        screen: Screen instance with progress_bar widget
-        processed: Number of messages processed
-        total: Total messages
-        start_time: Start time (timestamp)
-    """
-    def update(dt):
-        if total > 0:
-            progress = (processed / total) * 100
-            screen.ids.progress_bar.value = progress
-            
-            # Calculate stats
-            elapsed = time.time() - start_time
-            if elapsed > 0:
-                rate = processed / elapsed
-                remaining = (total - processed) / rate if rate > 0 else 0
-                
-                stats = f"Progress: {processed}/{total} ({progress:.1f}%) - "
-                stats += f"Rate: {rate:.1f} msg/s - "
-                stats += f"ETA: {remaining/60:.1f} min"
-                
-                update_status(screen, stats, "Primary")
-    
-    Clock.schedule_once(update)
-
-
-def get_transfer_method(screen):
-    """
-    Get selected transfer method
-    
-    Args:
-        screen: Screen instance
+        client: Telegram client
         
     Returns:
-        str: Transfer method ("forward" or "copy")
+        List[Dict]: List of chats with id, title, username
     """
-    # Default to forward
-    # Can be extended to read from UI selection
-    return "forward"
+    chats = []
+    
+    try:
+        async for dialog in client.iter_dialogs():
+            chat_info = {
+                'id': dialog.id,
+                'title': dialog.title,
+                'username': getattr(dialog.entity, 'username', None),
+                'type': 'channel' if isinstance(dialog.entity, Channel) else 'chat'
+            }
+            chats.append(chat_info)
+        
+        logger.info(f"Found {len(chats)} chats")
+        add_breadcrumb("Chats listed", {"count": len(chats)})
+        
+        return chats
+        
+    except Exception as e:
+        logger.error(f"Error listing chats: {e}")
+        return []
 
 
-def enable_ui_elements(screen, element_ids, enabled=True):
+def parse_channel_link(link: str) -> Optional[str]:
     """
-    Enable/disable multiple UI elements
+    Parse channel link and extract ID or username
+    
+    Supports:
+    - t.me/username
+    - t.me/c/123456789
+    - @username
+    - -100123456789 (direct ID)
     
     Args:
-        screen: Screen instance
-        element_ids: List of element IDs
-        enabled: True to enable, False to disable
+        link: Channel link or ID
+        
+    Returns:
+        Optional[str]: Channel identifier or None
     """
-    def update(dt):
-        for element_id in element_ids:
-            if element_id in screen.ids:
-                screen.ids[element_id].disabled = not enabled
+    if not link:
+        return None
     
-    Clock.schedule_once(update)
+    link = link.strip()
+    
+    # Direct ID (starts with - or digit)
+    if link.startswith('-') or link.isdigit():
+        return link
+    
+    # @username
+    if link.startswith('@'):
+        return link[1:]
+    
+    # t.me/username
+    username_match = re.match(r'(?:https?://)?t\.me/([a-zA-Z0-9_]+)', link)
+    if username_match:
+        return username_match.group(1)
+    
+    # t.me/c/123456789
+    private_match = re.match(r'(?:https?://)?t\.me/c/(\d+)', link)
+    if private_match:
+        # Convert to full ID format
+        return f"-100{private_match.group(1)}"
+    
+    logger.warning(f"Could not parse channel link: {link}")
+    return None
+
+
+def get_channel_variations(channel_id: str) -> List[str]:
+    """
+    Get different variations of channel ID
+    
+    Args:
+        channel_id: Channel ID
+        
+    Returns:
+        List[str]: List of ID variations
+    """
+    variations = [channel_id]
+    
+    # If starts with -100, add without it
+    if channel_id.startswith('-100'):
+        variations.append(channel_id[4:])
+    
+    # If numeric, add with -100
+    elif channel_id.isdigit():
+        variations.append(f"-100{channel_id}")
+    
+    return variations
+
+
+def choose_file_types(selected: Dict[str, bool] = None) -> Dict[str, bool]:
+    """
+    Choose which file types to transfer
+    
+    Args:
+        selected: Dictionary of file type selections
+        
+    Returns:
+        Dict[str, bool]: File type selections
+    """
+    from ..config import Config
+    
+    if selected is None:
+        # Default: all types
+        return Config.SUPPORTED_FILE_TYPES.copy()
+    
+    # Validate selections
+    valid_types = {}
+    for file_type, enabled in selected.items():
+        if file_type in Config.SUPPORTED_FILE_TYPES:
+            valid_types[file_type] = enabled
+    
+    return valid_types
+
+
+def filter_by_file_type(message, file_types: Dict[str, bool]) -> bool:
+    """
+    Check if message matches selected file types
+    
+    Args:
+        message: Telegram message
+        file_types: Dictionary of enabled file types
+        
+    Returns:
+        bool: True if message should be transferred
+    """
+    # Text messages
+    if message.text and not message.media:
+        return file_types.get('text', True)
+    
+    # Media messages
+    if message.media:
+        media_type = type(message.media).__name__
+        
+        if 'Photo' in media_type:
+            return file_types.get('photos', True)
+        elif 'Video' in media_type or 'Document' in media_type:
+            # Check if it's a video
+            if hasattr(message.media, 'document'):
+                mime = getattr(message.media.document, 'mime_type', '')
+                if 'video' in mime:
+                    return file_types.get('videos', True)
+            return file_types.get('documents', True)
+        elif 'Audio' in media_type:
+            return file_types.get('audio', True)
+        elif 'Voice' in media_type:
+            return file_types.get('voice', True)
+        elif 'Sticker' in media_type:
+            return file_types.get('stickers', True)
+    
+    # Default: transfer
+    return True
+
+
+async def download_media(client: TelegramClient, message, 
+                        file_path: str = None) -> Optional[bytes]:
+    """
+    Download media from message
+    
+    Args:
+        client: Telegram client
+        message: Message with media
+        file_path: Optional file path to save
+        
+    Returns:
+        Optional[bytes]: Downloaded file bytes or None
+    """
+    try:
+        if not message.media:
+            logger.warning("Message has no media")
+            return None
+        
+        # Download
+        if file_path:
+            await client.download_media(message.media, file=file_path)
+            logger.info(f"Downloaded media to {file_path}")
+            return None
+        else:
+            file_bytes = await client.download_media(message.media, file=bytes)
+            logger.info(f"Downloaded media ({len(file_bytes)} bytes)")
+            return file_bytes
+            
+    except Exception as e:
+        logger.error(f"Error downloading media: {e}")
+        return None
+
+
+async def upload_media(client: TelegramClient, target_entity,
+                      file_data, caption: str = None):
+    """
+    Upload media to channel
+    
+    Args:
+        client: Telegram client
+        target_entity: Target channel
+        file_data: File bytes or path
+        caption: Optional caption
+        
+    Returns:
+        bool: True if uploaded successfully
+    """
+    try:
+        await client.send_file(
+            target_entity,
+            file_data,
+            caption=caption or ''
+        )
+        
+        logger.info("Uploaded media successfully")
+        add_breadcrumb("Media uploaded")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error uploading media: {e}")
+        return False

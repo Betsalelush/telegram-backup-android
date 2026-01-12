@@ -1,69 +1,80 @@
-# -*- coding: utf-8 -*-
 """
+Main Application Entry Point
 Telegram Backup Android App v3.0
-Main application entry point with modular architecture
 """
-
-import asyncio
 import os
-import sys
-import threading
-import logging
-
-# Add app directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from kivy.lang import Builder
-from kivymd.app import MDApp
 from kivy.uix.screenmanager import ScreenManager
+from kivymd.app import MDApp
 
-# Import configuration
 from app.config import Config
-from app.utils.logger import logger, add_breadcrumb
-from app.screens.login_screen import LoginScreen
-from app.screens.backup_screen import BackupScreen
-
-# KivyMD Layout (minimal - screens have their own KV)
-KV = '''
-ScreenManager:
-    id: screen_manager
-    
-    LoginScreen:
-        name: 'login'
-    
-    BackupScreen:
-        name: 'backup'
-'''
+from app.managers.account_manager import AccountManager
+from app.managers.progress_manager import ProgressManager
+from app.managers.transfer_manager import TransferManager
+from app.screens.accounts_screen import AccountsScreen
+from app.screens.action_screen import ActionScreen
+from app.screens.transfer_screen import TransferScreen
+from app.utils.logger import logger, init_sentry, add_breadcrumb
 
 
 class TelegramBackupApp(MDApp):
-    """Main application class with modular architecture"""
+    """
+    Main Application Class
     
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.worker_thread = None
-        self.worker_loop = None
+    Features:
+    - Multi-screen navigation
+    - Account management
+    - Transfer management
+    - Progress tracking
+    - Sentry integration
+    """
     
     def build(self):
-        """Build the application"""
+        """Build application"""
         # Set theme
-        self.theme_cls.primary_palette = Config.PRIMARY_PALETTE
-        self.theme_cls.theme_style = Config.DEFAULT_THEME
+        self.theme_cls.primary_palette = "Blue"
+        self.theme_cls.theme_style = "Light"
         
         # Setup configuration
         self.setup_config()
         
-        # Setup worker thread for async operations
-        self.setup_worker_thread()
+        # Initialize Sentry
+        init_sentry()
         
-        # Add breadcrumb
-        add_breadcrumb('app', 'Application started', 'info')
-        logger.info("Telegram Backup App v3.0 started")
+        # Initialize managers
+        self.account_manager = AccountManager(
+            Config.ACCOUNTS_FILE,
+            Config.SESSIONS_DIR
+        )
         
-        return Builder.load_string(KV)
+        self.progress_manager = ProgressManager(
+            Config.PROGRESS_DIR
+        )
+        
+        self.transfer_manager = TransferManager()
+        
+        # Create screen manager
+        sm = ScreenManager()
+        
+        # Add screens
+        sm.add_widget(ActionScreen(name='action'))
+        sm.add_widget(AccountsScreen(
+            self.account_manager,
+            name='accounts'
+        ))
+        sm.add_widget(TransferScreen(
+            self.account_manager,
+            self.transfer_manager,
+            self.progress_manager,
+            name='transfer'
+        ))
+        
+        logger.info("App initialized successfully")
+        add_breadcrumb("App started")
+        
+        return sm
     
     def setup_config(self):
-        """Setup configuration and paths"""
+        """Setup configuration with base directory"""
         try:
             # Try Android storage
             from android.storage import app_storage_path
@@ -71,45 +82,30 @@ class TelegramBackupApp(MDApp):
             logger.info(f"Android: Using directory {base_dir}")
         except ImportError:
             # Desktop - use current directory
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.getcwd()
             logger.info(f"Desktop: Using directory {base_dir}")
         
         # Setup config
         Config.setup(base_dir)
-        add_breadcrumb('config', f'Configuration setup: {base_dir}', 'info')
+        
+        add_breadcrumb("Config setup", {"base_dir": base_dir})
     
-    def setup_worker_thread(self):
-        """Setup persistent worker thread for async operations"""
-        def worker():
-            """Worker thread with persistent event loop"""
-            self.worker_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.worker_loop)
-            self.worker_loop.run_forever()
-        
-        self.worker_thread = threading.Thread(target=worker, daemon=True)
-        self.worker_thread.start()
-        
-        add_breadcrumb('worker', 'Worker thread started', 'info')
-        logger.info("Worker thread initialized")
-    
-    def run_in_worker(self, coro):
-        """
-        Run coroutine in worker thread
-        
-        Args:
-            coro: Coroutine to run
-        """
-        if self.worker_loop:
-            asyncio.run_coroutine_threadsafe(coro, self.worker_loop)
+    def on_start(self):
+        """Called when app starts"""
+        logger.info("App started")
+        add_breadcrumb("App on_start")
     
     def on_stop(self):
-        """Called when app is closing"""
-        add_breadcrumb('app', 'Application stopping', 'info')
-        logger.info("Application stopped")
+        """Called when app stops"""
+        logger.info("App stopped")
+        add_breadcrumb("App on_stop")
         
-        # Stop worker loop
-        if self.worker_loop:
-            self.worker_loop.call_soon_threadsafe(self.worker_loop.stop)
+        # Disconnect all accounts
+        import asyncio
+        for account in self.account_manager.get_connected_accounts():
+            asyncio.create_task(
+                self.account_manager.disconnect_account(account['id'])
+            )
 
 
 if __name__ == '__main__':

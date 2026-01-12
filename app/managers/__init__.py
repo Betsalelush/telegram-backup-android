@@ -1,10 +1,14 @@
-```python
 """
-Managers package - Business logic modules
+Managers package
+Contains all business logic managers
 """
-from app.managers.account_manager import AccountManager
-from app.managers.progress_manager import ProgressManager
-from app.managers.transfer_manager import TransferManager
 
-__all__ = ['AccountManager', 'ProgressManager', 'TransferManager']
-```
+from .account_manager import AccountManager
+from .progress_manager import ProgressManager
+from .transfer_manager import TransferManager
+
+__all__ = [
+    'AccountManager',
+    'ProgressManager', 
+    'TransferManager'
+]

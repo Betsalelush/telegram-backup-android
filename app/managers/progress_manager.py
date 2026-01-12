@@ -1,169 +1,263 @@
-# -*- coding: utf-8 -*-
 """
 Progress Manager
-Manages transfer progress tracking and persistence
-Based on tor.py architecture
+Manages transfer progress tracking
 """
-
 import json
 import os
-import logging
-from typing import Dict, Set, Optional
+from datetime import datetime
+from typing import Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from ..config import Config
+from ..utils.logger import logger, add_breadcrumb
+
 
 class ProgressManager:
-    """Manages transfer progress"""
+    """
+    Manages transfer progress
+    
+    Features:
+    - Save/load progress per transfer
+    - Track sent message IDs
+    - Resume from last position
+    - Cleanup old progress
+    """
     
     def __init__(self, progress_dir: str):
         """
-        Initialize ProgressManager
+        Initialize Progress Manager
         
         Args:
             progress_dir: Directory for progress files
         """
         self.progress_dir = progress_dir
+        os.makedirs(progress_dir, exist_ok=True)
         
-        # Create progress directory if it doesn't exist
-        os.makedirs(self.progress_dir, exist_ok=True)
+        add_breadcrumb("ProgressManager initialized")
     
-    def get_progress_path(self, transfer_id: str) -> str:
+    def get_progress_key(self, source_id: str, target_id: str) -> str:
         """
-        Get progress file path for a transfer
+        Create unique key for source→target channel pair
         
         Args:
-            transfer_id: Transfer ID
+            source_id: Source channel ID
+            target_id: Target channel ID
             
         Returns:
-            Full path to progress file
+            str: Unique progress key
         """
-        return os.path.join(self.progress_dir, f'{transfer_id}_progress.json')
+        return f"channel_{source_id}_to_{target_id}"
     
-    def load_progress(self, transfer_id: str) -> Dict:
+    def load_progress(self, source_id: str, target_id: str) -> Dict:
         """
-        Load progress for a transfer
+        Load progress for specific channel pair
         
         Args:
-            transfer_id: Transfer ID
+            source_id: Source channel ID
+            target_id: Target channel ID
             
         Returns:
-            Progress dict with sent_message_ids, last_message_id, etc.
+            Dict: Progress data with sent_message_ids and last_message_id
         """
-        progress_path = self.get_progress_path(transfer_id)
+        key = self.get_progress_key(source_id, target_id)
+        progress_file = os.path.join(self.progress_dir, f'{key}.json')
         
-        if os.path.exists(progress_path):
-            try:
-                with open(progress_path, 'r', encoding='utf-8') as f:
-                    progress = json.load(f)
-                logger.info(f"Loaded progress for {transfer_id}: {progress.get('total_sent', 0)} messages")
-                return progress
-            except Exception as e:
-                logger.error(f"Error loading progress for {transfer_id}: {e}")
-                return self._create_empty_progress(transfer_id)
-        else:
-            return self._create_empty_progress(transfer_id)
-    
-    def save_progress(self, transfer_id: str, progress: Dict):
-        """
-        Save progress for a transfer
-        
-        Args:
-            transfer_id: Transfer ID
-            progress: Progress dict
-        """
-        progress_path = self.get_progress_path(transfer_id)
+        if not os.path.exists(progress_file):
+            logger.info(f"No progress found for {key}, starting fresh")
+            return {
+                'sent_message_ids': [],
+                'last_message_id': 0,
+                'total_sent': 0,
+                'total_skipped': 0,
+                'last_updated': None
+            }
         
         try:
-            # Update timestamp
-            from datetime import datetime
-            progress['last_updated'] = datetime.now().isoformat()
+            with open(progress_file, 'r', encoding='utf-8') as f:
+                progress = json.load(f)
             
-            with open(progress_path, 'w', encoding='utf-8') as f:
+            logger.info(f"Loaded progress for {key}: {progress['total_sent']} messages sent")
+            add_breadcrumb("Progress loaded", {
+                "key": key,
+                "total_sent": progress['total_sent']
+            })
+            
+            return progress
+            
+        except Exception as e:
+            logger.error(f"Error loading progress for {key}: {e}")
+            return {
+                'sent_message_ids': [],
+                'last_message_id': 0,
+                'total_sent': 0,
+                'total_skipped': 0,
+                'last_updated': None
+            }
+    
+    def save_progress(self, source_id: str, target_id: str, 
+                     sent_message_ids: List[int], last_message_id: int,
+                     total_sent: int = 0, total_skipped: int = 0):
+        """
+        Save progress for specific channel pair
+        
+        Args:
+            source_id: Source channel ID
+            target_id: Target channel ID
+            sent_message_ids: List of sent message IDs
+            last_message_id: Last processed message ID
+            total_sent: Total messages sent
+            total_skipped: Total messages skipped
+            
+        Returns:
+            bool: True if saved successfully
+        """
+        key = self.get_progress_key(source_id, target_id)
+        progress_file = os.path.join(self.progress_dir, f'{key}.json')
+        
+        try:
+            # Limit size if too large
+            if len(sent_message_ids) > Config.MAX_PROGRESS_ITEMS:
+                logger.warning(f"Progress too large ({len(sent_message_ids)} items), trimming to {Config.MAX_PROGRESS_ITEMS}")
+                # Keep most recent items
+                sent_message_ids = sent_message_ids[-Config.MAX_PROGRESS_ITEMS:]
+            
+            progress = {
+                'sent_message_ids': sent_message_ids,
+                'last_message_id': last_message_id,
+                'total_sent': total_sent,
+                'total_skipped': total_skipped,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            with open(progress_file, 'w', encoding='utf-8') as f:
                 json.dump(progress, f, ensure_ascii=False, indent=2)
             
-            logger.debug(f"Saved progress for {transfer_id}")
+            logger.info(f"Saved progress for {key}: {total_sent} sent, {total_skipped} skipped")
+            add_breadcrumb("Progress saved", {
+                "key": key,
+                "total_sent": total_sent,
+                "total_skipped": total_skipped
+            })
+            
+            return True
+            
         except Exception as e:
-            logger.error(f"Error saving progress for {transfer_id}: {e}")
+            logger.error(f"Error saving progress for {key}: {e}")
+            return False
     
-    def update_progress(self, transfer_id: str, message_id: int, success: bool = True):
+    def get_all_progress(self) -> Dict[str, Dict]:
         """
-        Update progress with a new message
+        Get all progress files
+        
+        Returns:
+            Dict[str, Dict]: Dictionary of all progress data
+        """
+        all_progress = {}
+        
+        try:
+            for filename in os.listdir(self.progress_dir):
+                if filename.endswith('.json'):
+                    key = filename[:-5]  # Remove .json
+                    filepath = os.path.join(self.progress_dir, filename)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            all_progress[key] = json.load(f)
+                    except Exception as e:
+                        logger.error(f"Error loading {filename}: {e}")
+            
+            logger.info(f"Loaded {len(all_progress)} progress files")
+            return all_progress
+            
+        except Exception as e:
+            logger.error(f"Error getting all progress: {e}")
+            return {}
+    
+    def clear_progress(self, source_id: str, target_id: str) -> bool:
+        """
+        Clear progress for specific channel pair
         
         Args:
-            transfer_id: Transfer ID
-            message_id: Message ID
-            success: Whether message was sent successfully
+            source_id: Source channel ID
+            target_id: Target channel ID
+            
+        Returns:
+            bool: True if cleared successfully
         """
-        progress = self.load_progress(transfer_id)
+        key = self.get_progress_key(source_id, target_id)
+        progress_file = os.path.join(self.progress_dir, f'{key}.json')
         
-        if success:
+        try:
+            if os.path.exists(progress_file):
+                os.remove(progress_file)
+                logger.info(f"Cleared progress for {key}")
+                add_breadcrumb("Progress cleared", {"key": key})
+                return True
+            else:
+                logger.warning(f"No progress file to clear for {key}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error clearing progress for {key}: {e}")
+            return False
+    
+    def update_progress(self, source_id: str, target_id: str, message_id: int):
+        """
+        Update progress with new message
+        
+        Args:
+            source_id: Source channel ID
+            target_id: Target channel ID
+            message_id: Message ID that was sent
+        """
+        # Load current progress
+        progress = self.load_progress(source_id, target_id)
+        
+        # Update
+        if message_id not in progress['sent_message_ids']:
             progress['sent_message_ids'].append(message_id)
-            progress['last_message_id'] = message_id
             progress['total_sent'] += 1
-        else:
-            progress['total_skipped'] += 1
         
-        self.save_progress(transfer_id, progress)
+        if message_id > progress['last_message_id']:
+            progress['last_message_id'] = message_id
+        
+        # Save
+        self.save_progress(
+            source_id, target_id,
+            progress['sent_message_ids'],
+            progress['last_message_id'],
+            progress['total_sent'],
+            progress['total_skipped']
+        )
     
-    def get_sent_message_ids(self, transfer_id: str) -> Set[int]:
+    def cleanup_old_progress(self, days: int = 30) -> int:
         """
-        Get set of sent message IDs
+        Cleanup progress files older than specified days
         
         Args:
-            transfer_id: Transfer ID
+            days: Number of days to keep
             
         Returns:
-            Set of message IDs
+            int: Number of files deleted
         """
-        progress = self.load_progress(transfer_id)
-        return set(progress.get('sent_message_ids', []))
-    
-    def get_last_message_id(self, transfer_id: str) -> int:
-        """
-        Get last processed message ID
+        deleted = 0
+        cutoff = datetime.now().timestamp() - (days * 24 * 60 * 60)
         
-        Args:
-            transfer_id: Transfer ID
+        try:
+            for filename in os.listdir(self.progress_dir):
+                if filename.endswith('.json'):
+                    filepath = os.path.join(self.progress_dir, filename)
+                    
+                    # Check file age
+                    if os.path.getmtime(filepath) < cutoff:
+                        os.remove(filepath)
+                        deleted += 1
+                        logger.info(f"Deleted old progress file: {filename}")
             
-        Returns:
-            Last message ID or 0
-        """
-        progress = self.load_progress(transfer_id)
-        return progress.get('last_message_id', 0)
-    
-    def _create_empty_progress(self, transfer_id: str) -> Dict:
-        """
-        Create empty progress dict
-        
-        Args:
-            transfer_id: Transfer ID
+            if deleted > 0:
+                add_breadcrumb("Old progress cleaned", {"deleted": deleted})
             
-        Returns:
-            Empty progress dict
-        """
-        from datetime import datetime
-        return {
-            'transfer_id': transfer_id,
-            'sent_message_ids': [],
-            'last_message_id': 0,
-            'total_sent': 0,
-            'total_skipped': 0,
-            'created_at': datetime.now().isoformat(),
-            'last_updated': datetime.now().isoformat()
-        }
-    
-    def delete_progress(self, transfer_id: str):
-        """
-        Delete progress file
-        
-        Args:
-            transfer_id: Transfer ID
-        """
-        progress_path = self.get_progress_path(transfer_id)
-        
-        if os.path.exists(progress_path):
-            try:
-                os.remove(progress_path)
-                logger.info(f"Deleted progress for {transfer_id}")
-            except Exception as e:
-                logger.error(f"Error deleting progress for {transfer_id}: {e}")
+            return deleted
+            
+        except Exception as e:
+            logger.error(f"Error cleaning old progress: {e}")
+            return 0
