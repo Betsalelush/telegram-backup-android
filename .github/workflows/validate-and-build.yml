@@ -36,6 +36,9 @@ jobs:
     name: Validate Functions, Files, and Structure
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+    
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
@@ -335,6 +338,10 @@ jobs:
     runs-on: ubuntu-latest
     # Only run build if manually triggered or if workflow_dispatch with build option
     if: github.event_name == 'workflow_dispatch'
+    
+    permissions:
+      contents: read
+      actions: write  # For uploading artifacts
     
     steps:
     - name: 📥 Checkout code
