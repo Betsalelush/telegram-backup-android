@@ -163,7 +163,7 @@ jobs:
         # Fix Python 2/3 compatibility - replace 'long' with 'int'
         # Only in Python code, not in C type declarations
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" -o -name "*.py" \) -exec sed -i \
-          -e 's/\bisinstance(\([^,)]*\),\s*long)/isinstance(\1, int)/g' \
+          -e 's/\bisinstance(\([a-zA-Z_][a-zA-Z0-9_]*\),\s*long)/isinstance(\1, int)/g' \
           -e 's/\b(int,\s*long)/(int)/g' \
           -e 's/\blong,\s*int\b/int/g' \
           {} + 2>/dev/null || true
@@ -175,8 +175,8 @@ jobs:
         # affect performance, but is necessary for Cython 3.x compatibility
         # Limitation: Only catches IF/ELIF/ELSE at line start with optional whitespace
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
-          -e 's/^\(\s*\)IF \(.*\):/\1if \2:/g' \
-          -e 's/^\(\s*\)ELIF \(.*\):/\1elif \2:/g' \
+          -e 's/^\(\s*\)IF \([^:]\+\):/\1if \2:/g' \
+          -e 's/^\(\s*\)ELIF \([^:]\+\):/\1elif \2:/g' \
           -e 's/^\(\s*\)ELSE:/\1else:/g' \
           {} + 2>/dev/null || true
         
