@@ -107,6 +107,7 @@ jobs:
             ;;
           *)
             echo "❌ Error: Unknown version: $VERSION"
+            echo "Valid versions: crash_test, basic, kivymd, full"
             exit 1
             ;;
         esac
