@@ -1057,6 +1057,19 @@ class TelegramBackupApp(MDApp):
                         self.log("Backup stopped")
                         break
                     
+                    if message and message.id:
+                        # בדיקה אם כבר שלחנו את ההודעה
+                        if message.id in self.sent_message_ids:
+                            skipped += 1
+                            continue
+                        
+                        # סינון סוגי קבצים
+                        should_send = False
+                        message_type = None
+                        
+                        if message.text and not message.media:
+                            should_send = file_types.get('text', True)
+                            message_type = "text"
                         elif message.photo:
                             should_send = file_types.get('photos', True)
                             message_type = "photo"
