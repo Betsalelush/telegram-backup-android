@@ -125,14 +125,57 @@ jobs:
         buildozer -v android debug 2>&1 | tee build.log
         echo "✅ APK נבנה בהצלחה."
 
-    - name: 🔍 Find APK or ZIP
+    - name: 🔍 Find APK or ZIP (Debug Mode)
       id: find_apk
       run: |
         echo "🔍 מחפש קובץ APK או ZIP..."
-        FILE_PATH=$(find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Show current directory
+        echo "📂 תיקייה נוכחית: $(pwd)"
+        echo ""
+        
+        # List root directory
+        echo "📋 קבצים בתיקייה הראשית:"
+        ls -lah
+        echo ""
+        
+        # Search for ALL APK files
+        echo "🔍 מחפש כל קבצי APK:"
+        find . -name "*.apk" -type f 2>/dev/null || echo "לא נמצאו קבצי APK"
+        echo ""
+        
+        # Search for ALL ZIP files
+        echo "🔍 מחפש כל קבצי ZIP:"
+        find . -name "*.zip" -type f 2>/dev/null || echo "לא נמצאו קבצי ZIP"
+        echo ""
+        
+        # Check bin directory
+        echo "📂 בודק תיקיית bin/:"
+        if [ -d "bin" ]; then
+          ls -lah bin/
+        else
+          echo "תיקיית bin/ לא קיימת"
+        fi
+        echo ""
+        
+        # Check .buildozer directory structure
+        echo "📂 בודק מבנה .buildozer/:"
+        if [ -d ".buildozer" ]; then
+          echo "תיקיית .buildozer/ קיימת"
+          find .buildozer -name "*.apk" -o -name "*.zip" 2>/dev/null | head -20
+        else
+          echo "תיקיית .buildozer/ לא קיימת"
+        fi
+        echo ""
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Try to find APK (any location)
+        FILE_PATH=$(find . -type f \( -name "*.apk" -o -name "*.zip" \) 2>/dev/null | head -n 1)
         
         if [ -z "$FILE_PATH" ]; then
-          echo "❌ קובץ APK או ZIP לא נמצא!"
+          echo "❌ קובץ APK או ZIP לא נמצא בכלל!"
           exit 1
         fi
         
@@ -140,6 +183,7 @@ jobs:
         echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
         FILE_SIZE=$(du -h "$FILE_PATH" | cut -f1)
         echo "📦 גודל הקובץ: $FILE_SIZE"
+        echo "apk_size=$FILE_SIZE" >> $GITHUB_OUTPUT
       
     - name: 📤 Upload File
       uses: actions/upload-artifact@v4
