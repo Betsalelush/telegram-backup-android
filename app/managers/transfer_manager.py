@@ -25,8 +25,8 @@ class TransferManager:
         self.consecutive_successes = 0
         
         # Delays
-        self.min_delay = Config.MIN_DELAY
-        self.max_delay = Config.MAX_DELAY
+        self.min_delay = Config.SMART_DELAY_MIN
+        self.max_delay = Config.SMART_DELAY_MAX
     
     async def transfer_message(self, client, message, source_entity, target_entity, method="forward"):
         """

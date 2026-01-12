@@ -37,25 +37,26 @@ jobs:
         
         case $VERSION in
           crash_test)
-            cp main_crash_test.py main.py
-            cp requirements_crash_test.txt requirements.txt
+            cp legacy/main_crash_test.py main.py
+            cp legacy/requirements_crash_test.txt requirements.txt
             TITLE="Crash Test"
             PACKAGE="crashtest"
             ;;
           basic)
-            cp main_test_basic.py main.py
-            cp requirements_basic.txt requirements.txt
+            cp legacy/main_test_basic.py main.py
+            cp legacy/requirements_basic.txt requirements.txt
             TITLE="Test Basic"
             PACKAGE="testbasic"
             ;;
           kivymd)
-            cp main_test_kivymd.py main.py
-            cp requirements_kivymd.txt requirements.txt
+            cp legacy/main_test_kivymd.py main.py
+            cp legacy/requirements_kivymd.txt requirements.txt
             TITLE="Test KivyMD"
             PACKAGE="testkivymd"
             ;;
           full)
-            cp main_full.py main.py
+            # New modular architecture - use app/main.py
+            cp app/main.py main.py
             cp requirements_full.txt requirements.txt
             TITLE="Telegram Backup"
             PACKAGE="telegrambackup"
