@@ -143,24 +143,37 @@ python app/main.py
 
 ## 🔧 Build Fixes
 
-### Cython Language Level Issue
+### Issue #1: Cython Language Level ✅
 
 **בעיה:**
 - Builds נכשלו בגלל Cython defaulting ל-Python 2
 - שגיאה: `language_level not set, using 2 for now (Py2)`
 
 **פתרון:**
-עדכנו את `.github/workflows/build-apk.yml`:
 ```yaml
 - name: 🔧 Set Cython Language Level
   run: echo "CYTHON_LANGUAGE_LEVEL=3" >> $GITHUB_ENV
-
-- name: 📦 Upgrade Build Tools
-  run: |
-    pip install --upgrade setuptools wheel cython
 ```
 
-**סטטוס:** ✅ תוקן בגרסה 3.0
+**סטטוס:** ✅ תוקן
+
+---
+
+### Issue #2: pyjnius 'long' Type Error 🔧
+
+**בעיה:**
+- Build נכשל עם: `jnius/jnius_utils.pxi:323:37: undeclared name not builtin: long`
+- Python 3 הסיר את `long`, משתמש רק ב-`int`
+- pyjnius גרסה ישנה לא תואמת
+
+**פתרון:**
+```yaml
+- name: 📦 Install pyjnius
+  run: |
+    pip install pyjnius==1.5.0
+```
+
+**סטטוס:** 🔧 בתיקון
 
 ---
 
