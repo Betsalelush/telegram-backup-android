@@ -94,87 +94,53 @@ jobs:
         echo "🔧 מעדכן autoconf macros..."
         sudo autoupdate || true
         
-        echo "✅ autoconf macros עודכנו"
+        echo "✅ autoconf macros עודכנו - ומוכנים לריצה"
 
     - name: 🐍 Install Python dependencies (Fixed Versions)
       run: |
         echo "🐍 מתקין תלויות Python עם גרסאות קבועות..."
         
-        # Upgrade pip
         python -m pip install --upgrade pip setuptools wheel
-        
-        # Install Cython first (required for other packages)
         pip install Cython==${{ env.CYTHON_VERSION }}
-        
-        # Install Buildozer
         pip install buildozer==${{ env.BUILDOZER_VERSION }}
-        
-        # Install app requirements (all with fixed versions)
         pip install -r requirements_full.txt
         
-        echo "✅ כל התלויות הותקנו בגרסאות קבועות"
-        
-        # Print versions for verification
-        echo "📋 גרסאות מותקנות:"
-        pip list | grep -E "telethon|kivy|kivymd|Cython|buildozer|pyjnius"
-    
+        echo "✅ כל התלויות הותקנו"
+
     - name: ⚙️ Configure environment
       run: |
-        echo "⚙️ מגדיר סביבת build..."
-        
-        # Set Cython language level
+        echo "⚙️ מגדיר סביבת Build..."
         export CYTHON_LANGUAGE_LEVEL=3
-        
-        # Set Android environment variables
         export ANDROID_HOME=/usr/local/lib/android/sdk
         export ANDROID_SDK_ROOT=$ANDROID_HOME
         export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        
-        # Create necessary directories
         mkdir -p bin
         mkdir -p .buildozer
-        
-        echo "✅ סביבה הוגדרה"
+        echo "✅ סביבה הוגדרה בהצלחה"
     
     - name: 🔨 Build APK with Buildozer
       run: |
-        echo "🔨 מתחיל בנייה..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Set environment variables
-        export CYTHON_LANGUAGE_LEVEL=3
-        export USE_CCACHE=1
-        export CCACHE_DIR=~/.ccache
-        
-        # Run buildozer
+        echo "🔨 מתחיל תהליך בניית APK"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         buildozer -v android debug 2>&1 | tee build.log
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "✅ בנייה הושלמה!"
-    
+        echo "✅ APK נבנה בהצלחה."
+
     - name: 🔍 Find APK or ZIP
       id: find_apk
       run: |
-        echo "🔍 מחפש APK או ZIP..."
-        
-        # Search for APK or ZIP in multiple possible locations
+        echo "🔍 מחפש קובץ APK או ZIP..."
         FILE_PATH=$(find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
         
         if [ -z "$FILE_PATH" ]; then
-          echo "❌ APK או ZIP לא נמצא!"
-          echo "📂 מחפש בכל המיקומים:"
-          find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null || echo "אין קבצים מתאימים"
+          echo "❌ קובץ APK או ZIP לא נמצא!"
           exit 1
         fi
         
         echo "✅ נמצא קובץ: $FILE_PATH"
         echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
-        
-        # Get file info
         FILE_SIZE=$(du -h "$FILE_PATH" | cut -f1)
-        echo "📦 גודל קובץ: $FILE_SIZE"
-        echo "file_size=$FILE_SIZE" >> $GITHUB_OUTPUT
-    
+        echo "📦 גודל הקובץ: $FILE_SIZE"
+      
     - name: 📤 Upload File
       uses: actions/upload-artifact@v4
       with:
@@ -182,26 +148,10 @@ jobs:
         path: ${{ steps.find_apk.outputs.file_path }}
         if-no-files-found: error
         retention-days: 30
-    
+
     - name: 📊 Build Summary
       if: always()
       run: |
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━"
-        echo "📊 סיכום Build"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 סיכום Build:"
         echo "🐍 Python: ${{ env.PYTHON_VERSION }}"
-        echo "🔨 Buildozer: ${{ env.BUILDOZER_VERSION }}"
-        echo "📱 Android API: ${{ env.ANDROID_API }}"
-        echo "🔧 NDK: ${{ env.ANDROID_NDK }}"
-        echo "📦 File Size: ${{ steps.find_apk.outputs.file_size }}"
-        echo "🔢 Build #: ${{ github.run_number }}"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    - name: 📋 Upload build log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-log-${{ github.run_number }}.txt
-        path: build.log
-        if-no-files-found: warn
-        retention-days: 7
+        echo "🐍 Buildozer Version: ${{ env.BUILDOZER_VERSION }}"
