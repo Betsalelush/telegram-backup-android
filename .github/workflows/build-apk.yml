@@ -164,14 +164,15 @@ jobs:
         # Only in Python code, not in C type declarations
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" -o -name "*.py" \) -exec sed -i \
           -e 's/\bisinstance(\([^,)]*\),\s*long)/isinstance(\1, int)/g' \
-          -e 's/\b(int,\s*long)/(int,)/g' \
+          -e 's/\b(int,\s*long)/(int)/g' \
           -e 's/\blong,\s*int\b/int/g' \
           {} + 2>/dev/null || true
         
         # Fix deprecated Cython IF statements if they exist
         # Note: pyjnius 1.6.1 should already be compatible with Cython 3.x
         # But if IF statements exist, we'll convert them to runtime conditionals
-        # This is safer than using DEF which is for compile-time constants
+        # WARNING: This changes compile-time conditionals to runtime, which may
+        # affect performance, but is necessary for Cython 3.x compatibility
         # Limitation: Only catches IF/ELIF/ELSE at line start with optional whitespace
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
           -e 's/^\(\s*\)IF \(.*\):/\1if \2:/g' \
@@ -292,7 +293,7 @@ jobs:
         echo "📱 App title: $TITLE"
         echo "📦 Package: $PACKAGE"
         echo "📄 Files copied:"
-        ls -lh main.py requirements.txt
+        ls -lh main.py requirements.txt 2>/dev/null || echo "Warning: Some files may be missing"
     
     
     - name: 🔨 Create buildozer.spec

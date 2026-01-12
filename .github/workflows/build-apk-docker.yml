@@ -119,7 +119,7 @@ jobs:
         echo "📱 App title: $TITLE"
         echo "📦 Package: $PACKAGE"
         echo "📄 Files copied:"
-        ls -lh main.py requirements.txt
+        ls -lh main.py requirements.txt 2>/dev/null || echo "Warning: Some files may be missing"
     
     
     - name: 🔨 Create buildozer.spec
