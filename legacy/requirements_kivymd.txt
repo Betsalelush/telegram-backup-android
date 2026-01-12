@@ -1,4 +1,0 @@
-python3
-kivy==2.2.1
-kivymd
-sentry-sdk==1.40.0
