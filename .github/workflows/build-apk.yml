@@ -47,12 +47,13 @@ jobs:
     - name: 💾 Cache Buildozer directory
       uses: actions/cache@v4
       with:
+      with:
         path: .buildozer
-        key: buildozer-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          buildozer-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-
-          buildozer-${{ runner.os }}-${{ env.ANDROID_API }}-
-          buildozer-${{ runner.os }}-
+          buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}-
+          buildozer-v2-${{ runner.os }}-${{ env.ANDROID_API }}-
+          buildozer-v2-${{ runner.os }}-
     
     - name: 📦 Install system dependencies
       run: |
@@ -76,6 +77,10 @@ jobs:
           libffi-dev \
           libssl-dev \
           ccache
+        
+        # Set LIBTOOL environment variable to fix autoconf issues
+        echo "LIBTOOL=libtool" >> $GITHUB_ENV
+        echo "ACLOCAL_PATH=/usr/share/aclocal" >> $GITHUB_ENV
 
         echo "✅ תלויות מערכת הותקנו"
         
