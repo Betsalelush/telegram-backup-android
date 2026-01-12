@@ -112,6 +112,13 @@ jobs:
         pip install --upgrade buildozer python-for-android
         pip install cython==0.29.33
     
+    - name: 🔧 Set Cython Language Level
+      run: echo "CYTHON_LANGUAGE_LEVEL=3" >> $GITHUB_ENV
+    
+    - name: 📦 Upgrade Build Tools
+      run: |
+        pip install --upgrade setuptools wheel cython
+    
     
     - name: 🎯 Select version
       id: get_version
