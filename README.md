@@ -242,18 +242,44 @@ python app/main.py
 
 ## 🧪 בדיקות
 
-### הרצת בדיקות
+### הרצת בדיקות אוטומטיות
 
 ```bash
-# Syntax check
+# התקן תלויות בדיקה
+pip install -r requirements-test.txt
+
+# הרץ את כל הבדיקות
+pytest tests/
+
+# הרץ עם coverage
+pytest tests/ --cov=app --cov-report=term-missing
+
+# הרץ בדיקות ספציפיות
+pytest tests/unit/test_config.py -v
+```
+
+### Syntax check
+
+```bash
+# בדוק syntax של כל הקבצים
 python -m py_compile app/**/*.py
 
-# Run tests (when available)
-python -m pytest tests/
-
-# Check imports
+# בדוק imports
 python -c "from app.main import TelegramBackupApp"
 ```
+
+### CI/CD
+
+בדיקות רצות אוטומטית ב:
+- Pull requests ל-master
+- Push ל-master
+- Workflow ידני
+
+ראה `.github/workflows/test.yml` לפרטים.
+
+### מידע נוסף
+
+ראה [TESTING.md](TESTING.md) למדריך מפורט על בדיקות.
 
 ### בדיקות ידניות
 
@@ -318,6 +344,31 @@ python -c "from app.main import TelegramBackupApp"
 - ללא שגיאות indentation
 - קל להוסיף פיצ'רים
 - בדיקות מבודדות
+
+---
+
+## 🤝 תרומה לפרויקט
+
+מעוניינים לתרום? נשמח!
+
+### תהליך תרומה
+
+1. Fork את הפרויקט
+2. צור branch לפיצ'ר (`git checkout -b feature/amazing-feature`)
+3. כתוב בדיקות לקוד החדש
+4. וודא שהבדיקות עוברות (`pytest tests/`)
+5. Commit את השינויים (`git commit -m 'Add amazing feature'`)
+6. Push ל-branch (`git push origin feature/amazing-feature`)
+7. פתח Pull Request
+
+### הנחיות
+
+- עקוב אחרי סגנון הקוד הקיים
+- כתוב בדיקות לכל קוד חדש
+- עדכן תיעוד במידת הצורך
+- שמור על שינויים ממוקדים וקטנים
+
+ראה [CONTRIBUTING.md](CONTRIBUTING.md) למדריך מפורט.
 
 ---
 

@@ -15,7 +15,16 @@ bin/
 *.txt
 !requirements.txt
 !requirements_*.txt
+!requirements-test.txt
 !README.md
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.cover
 
 # IDE
 .vscode/
