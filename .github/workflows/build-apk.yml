@@ -14,13 +14,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🔨 Build with Buildozer (Docker)
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: stable
-          workdir: .
-
+        run: |
+          # Fix permissions for the .buildozer directory if it exists
+          mkdir -p .buildozer
+          sudo chmod 777 .buildozer
+          
+          # Run buildozer in the official Kivy container
+          docker run --rm \
+            -v ${{ github.workspace }}:/home/user/hostcwd \
+            -v ${{ github.workspace }}/.buildozer:/home/user/.buildozer \
+            kivy/buildozer \
+            buildozer android debug
+            
       - name: 📤 Upload APK
         uses: actions/upload-artifact@v4
         with:
