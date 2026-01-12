@@ -19,10 +19,6 @@ jobs:
     timeout-minutes: 90
     
     steps:
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 1: הכנה וקוד
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
     - name: 📥 Checkout code
       uses: actions/checkout@v4
     
@@ -30,10 +26,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 2: Cache - חיסכון בזמן!
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     - name: 💾 Cache pip packages
       uses: actions/cache@v4
@@ -73,10 +65,6 @@ jobs:
           android-sdk-ndk-${{ env.ANDROID_API }}-
           android-sdk-ndk-
     
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 3: התקנת תלויות מערכת
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
     - name: 📦 Install system dependencies
       run: |
         echo "📦 מתקין תלויות מערכת..."
@@ -92,7 +80,6 @@ jobs:
           libtool \
           libtool-bin \
           pkg-config \
-          pkg-config-macros \
           zlib1g-dev \
           libncurses5-dev \
           libncursesw5-dev \
@@ -100,190 +87,71 @@ jobs:
           libffi-dev \
           libssl-dev \
           ccache
-        
+
         echo "✅ תלויות מערכת הותקנו"
         
         # Update autoconf files to fix macro issues
         echo "🔧 מעדכן autoconf macros..."
         sudo autoupdate || true
         
-        echo "✅ autoconf macros עודכנו"
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 4: התקנת תלויות Python - גרסאות קבועות!
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+        echo "✅ autoconf macros עודכנו - ומוכנים לריצה"
+
     - name: 🐍 Install Python dependencies (Fixed Versions)
       run: |
         echo "🐍 מתקין תלויות Python עם גרסאות קבועות..."
         
-        # Upgrade pip
         python -m pip install --upgrade pip setuptools wheel
-        
-        # Install Cython first (required for other packages)
         pip install Cython==${{ env.CYTHON_VERSION }}
-        
-        # Install Buildozer
         pip install buildozer==${{ env.BUILDOZER_VERSION }}
-        
-        # Install app requirements (all with fixed versions)
         pip install -r requirements_full.txt
         
-        echo "✅ כל התלויות הותקנו בגרסאות קבועות"
-        
-        # Print versions for verification
-        echo "📋 גרסאות מותקנות:"
-        pip list | grep -E "telethon|kivy|kivymd|Cython|buildozer|pyjnius"
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 5: הגדרות סביבה
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+        echo "✅ כל התלויות הותקנו"
+
     - name: ⚙️ Configure environment
       run: |
-        echo "⚙️ מגדיר סביבת build..."
-        
-        # Set Cython language level
+        echo "⚙️ מגדיר סביבת Build..."
         export CYTHON_LANGUAGE_LEVEL=3
-        
-        # Set Android environment variables
         export ANDROID_HOME=/usr/local/lib/android/sdk
         export ANDROID_SDK_ROOT=$ANDROID_HOME
         export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        
-        # Create necessary directories
         mkdir -p bin
         mkdir -p .buildozer
-        
-        echo "✅ סביבה הוגדרה"
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 6: בנייה!
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        echo "✅ סביבה הוגדרה בהצלחה"
     
     - name: 🔨 Build APK with Buildozer
       run: |
-        echo "🔨 מתחיל בנייה..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Set environment variables
-        export CYTHON_LANGUAGE_LEVEL=3
-        export USE_CCACHE=1
-        export CCACHE_DIR=~/.ccache
-        
-        # Run buildozer
+        echo "🔨 מתחיל תהליך בניית APK"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         buildozer -v android debug 2>&1 | tee build.log
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "✅ בנייה הושלמה!"
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 7: איתור והעלאת APK
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+        echo "✅ APK נבנה בהצלחה."
+
     - name: 🔍 Find APK or ZIP
       id: find_apk
       run: |
-        echo "🔍 מחפש APK או ZIP..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔍 מחפש קובץ APK או ZIP..."
+        FILE_PATH=$(find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
         
-        # Show current directory
-        echo "📂 תיקייה נוכחית: $(pwd)"
-        
-        # List all directories
-        echo "📋 רשימת תיקיות:"
-        ls -la
-        
-        # Search for APK files everywhere
-        echo ""
-        echo "🔍 מחפש קבצי APK בכל המקומות:"
-        find . -name "*.apk" -type f 2>/dev/null || echo "לא נמצאו קבצי APK"
-        
-        # Search for ZIP files
-        echo ""
-        echo "🔍 מחפש קבצי ZIP:"
-        find . -name "*.zip" -type f 2>/dev/null || echo "לא נמצאו קבצי ZIP"
-        
-        # Check bin directory specifically
-        echo ""
-        echo "📂 בודק תיקיית bin/:"
-        if [ -d "bin" ]; then
-          ls -la bin/
-        else
-          echo "תיקיית bin/ לא קיימת"
+        if [ -z "$FILE_PATH" ]; then
+          echo "❌ קובץ APK או ZIP לא נמצא!"
+          exit 1
         fi
         
-        # Check .buildozer directory
-        echo ""
-        echo "📂 בודק תיקיית .buildozer/:"
-        if [ -d ".buildozer" ]; then
-          find .buildozer -name "*.apk" -o -name "*.zip" 2>/dev/null | head -10
-        else
-          echo "תיקיית .buildozer/ לא קיימת"
-        fi
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Try to find APK
-        APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
-        
-        if [ -n "$APK_PATH" ]; then
-          echo "✅ נמצא APK: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          
-          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          echo "📦 גודל: $APK_SIZE"
-          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        # Try to find ZIP
-        ZIP_PATH=$(find . -name "*.zip" -type f 2>/dev/null | head -n 1)
-        
-        if [ -n "$ZIP_PATH" ]; then
-          echo "✅ נמצא ZIP: $ZIP_PATH"
-          echo "apk_path=$ZIP_PATH" >> $GITHUB_OUTPUT
-          
-          ZIP_SIZE=$(du -h "$ZIP_PATH" | cut -f1)
-          echo "📦 גודל: $ZIP_SIZE"
-          echo "apk_size=$ZIP_SIZE" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        echo "❌ APK או ZIP לא נמצא!"
-        exit 1
-    
-    - name: 📤 Upload APK
+        echo "✅ נמצא קובץ: $FILE_PATH"
+        echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
+        FILE_SIZE=$(du -h "$FILE_PATH" | cut -f1)
+        echo "📦 גודל הקובץ: $FILE_SIZE"
+      
+    - name: 📤 Upload File
       uses: actions/upload-artifact@v4
       with:
-        name: telegram-backup-v3.0-${{ github.run_number }}.apk
-        path: ${{ steps.find_apk.outputs.apk_path }}
+        name: telegram-backup-v3.0-${{ github.run_number }}
+        path: ${{ steps.find_apk.outputs.file_path }}
         if-no-files-found: error
         retention-days: 30
-    
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # שלב 8: סיכום
-    #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+
     - name: 📊 Build Summary
       if: always()
       run: |
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "📊 סיכום Build"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 סיכום Build:"
         echo "🐍 Python: ${{ env.PYTHON_VERSION }}"
-        echo "🔨 Buildozer: ${{ env.BUILDOZER_VERSION }}"
-        echo "📱 Android API: ${{ env.ANDROID_API }}"
-        echo "🔧 NDK: ${{ env.ANDROID_NDK }}"
-        echo "📦 APK Size: ${{ steps.find_apk.outputs.apk_size }}"
-        echo "🔢 Build #: ${{ github.run_number }}"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    - name: 📋 Upload build log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-log-${{ github.run_number }}.txt
-        path: build.log
-        if-no-files-found: warn
-        retention-days: 7
+        echo "🔨 Buildozer Version: ${{ env.BUILDOZER_VERSION }}"
