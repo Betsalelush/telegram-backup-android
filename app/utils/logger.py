@@ -8,6 +8,7 @@ import logging
 import sys
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from app.config import Config
 
 # Configure UTF-8 encoding for Hebrew support
 if hasattr(sys.stdout, 'reconfigure'):
@@ -32,10 +33,10 @@ sentry_logging = LoggingIntegration(
 )
 
 sentry_sdk.init(
-    dsn="https://1f490b846ede82cfc3d5f6f5eb23263b@o4510215210598400.ingest.de.sentry.io/4510674676744272",
-    traces_sample_rate=1.0,  # 100% of transactions
-    profiles_sample_rate=1.0,  # 100% of profiles
-    max_breadcrumbs=100,  # Keep last 100 breadcrumbs
+    dsn=Config.SENTRY_DSN,
+    traces_sample_rate=Config.SENTRY_TRACES_SAMPLE_RATE,
+    profiles_sample_rate=Config.SENTRY_PROFILES_SAMPLE_RATE,
+    max_breadcrumbs=Config.SENTRY_MAX_BREADCRUMBS,
     integrations=[sentry_logging],
     enable_tracing=True,  # Enable performance monitoring
     # Enable debug mode for development

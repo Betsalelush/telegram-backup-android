@@ -1,6 +1,8 @@
-# Screens package initialization
-from .accounts_screen import AccountsScreen
-from .action_screen import ActionScreen
-from .transfer_screen import TransferScreen
+# -*- coding: utf-8 -*-
+"""
+Screens package - UI Screen modules
+"""
+from app.screens.login_screen import LoginScreen
+from app.screens.backup_screen import BackupScreen
 
-__all__ = ['AccountsScreen', 'ActionScreen', 'TransferScreen']
+__all__ = ['LoginScreen', 'BackupScreen']
