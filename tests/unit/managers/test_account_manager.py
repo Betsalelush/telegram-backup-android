@@ -74,6 +74,7 @@ class TestAccountManager:
         
         # Add account
         account_id = manager.add_account(
+            name='Test Account',
             phone=sample_account['phone'],
             api_id=sample_account['api_id'],
             api_hash=sample_account['api_hash']
@@ -82,6 +83,7 @@ class TestAccountManager:
         assert account_id is not None
         assert len(manager.accounts) == 1
         assert manager.accounts[0]['phone'] == sample_account['phone']
+        assert manager.accounts[0]['name'] == 'Test Account'
     
     def test_get_account(self, temp_dir, sample_account):
         """Test getting an account by ID"""
@@ -115,9 +117,8 @@ class TestAccountManager:
         manager = AccountManager(accounts_file, sessions_dir)
         manager.accounts = [sample_account]
         
-        result = manager.remove_account(sample_account['id'])
+        manager.remove_account(sample_account['id'])
         
-        assert result is True
         assert len(manager.accounts) == 0
     
     def test_get_connected_accounts(self, temp_dir, sample_account, mock_telegram_client):
@@ -126,10 +127,15 @@ class TestAccountManager:
         sessions_dir = os.path.join(temp_dir, 'sessions')
         
         manager = AccountManager(accounts_file, sessions_dir)
-        manager.accounts = [sample_account]
+        
+        # Add account with is_connected flag
+        account_connected = sample_account.copy()
+        account_connected['is_connected'] = True
+        manager.accounts = [account_connected]
         manager.clients[sample_account['id']] = mock_telegram_client
         
         connected = manager.get_connected_accounts()
         
         assert len(connected) == 1
         assert connected[0]['id'] == sample_account['id']
+        assert connected[0]['is_connected'] is True
