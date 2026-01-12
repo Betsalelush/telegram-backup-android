@@ -130,9 +130,14 @@ jobs:
         extracted_dir=$(find . -maxdepth 1 -type d -name 'pyjnius-*' | head -n 1)
         cd "$extracted_dir"
         
-        echo "🔧 מתקן את כל קבצי pyjnius (long → int)..."
-        # תיקון כל קבצי .pxi ו-.pyx
-        find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i 's/\blong\b/int/g' {} +
+        echo "🔧 מתקן את קבצי pyjnius (Python long → int)..."
+        # תיקון רק Python long, לא C types
+        find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
+          -e 's/isinstance(\([^,]*\), long)/isinstance(\1, int)/g' \
+          -e 's/, long)/, int)/g' \
+          -e 's/(long)/(int)/g' \
+          -e 's/\[long\]/[int]/g' \
+          {} +
         
         echo "📦 מתקין את pyjnius המתוקן..."
         pip install .
