@@ -119,9 +119,22 @@ jobs:
       run: |
         pip install --upgrade setuptools wheel cython
     
-    - name: 📦 Install pyjnius
+    - name: 📦 Install and Patch pyjnius
       run: |
-        pip install pyjnius==1.5.0
+        echo "📥 מוריד pyjnius..."
+        pip download pyjnius==1.5.0 --no-deps --dest /tmp
+        cd /tmp
+        tar -xzf pyjnius-*.tar.gz
+        cd pyjnius-*
+        
+        echo "🔧 מתקן את jnius_utils.pxi..."
+        sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' jnius/jnius_utils.pxi
+        sed -i 's/, long)/, int)/g' jnius/jnius_utils.pxi
+        
+        echo "📦 מתקין את pyjnius המתוקן..."
+        pip install .
+        
+        echo "✅ pyjnius מותקן ומתוקן!"
     
     
     - name: 🎯 Select version
@@ -226,60 +239,17 @@ jobs:
         
         echo "✅ buildozer.spec created"
     
-    - name: 🔧 Patch pyjnius for Python 3
-      run: |
-        echo "📝 יוצר סקריפט patch ל-pyjnius..."
-        cat > /tmp/patch_pyjnius.sh << 'PATCHEOF'
-        #!/bin/bash
-        echo "🔍 מחפש קבצי pyjnius..."
-        FOUND=0
-        for file in $(find ~/.buildozer -name "jnius_utils.pxi" 2>/dev/null); do
-          echo "🔧 מתקן: $file"
-          sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' "$file"
-          sed -i 's/, long)/, int)/g' "$file"
-          echo "✅ תוקן!"
-          FOUND=1
-        done
-        if [ $FOUND -eq 0 ]; then
-          echo "⚠️ לא נמצא jnius_utils.pxi עדיין"
-        fi
-        PATCHEOF
-        chmod +x /tmp/patch_pyjnius.sh
-        echo "✅ סקריפט patch מוכן"
-    
     - name: 🏗️ Build APK with Buildozer
       run: |
         echo "🚀 Starting build..."
         echo "⏰ This will take 30-40 minutes"
         
-        # אישור רישיון Android SDK מראש (תיקון לבעיית ההמתנה ל-input)
+        # אישור רישיון Android SDK מראש
         mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
         echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
         
-        # מריץ buildozer ברקע
-        buildozer -v android debug 2>&1 | tee build.log &
-        BUILD_PID=$!
-        
-        # ממתין שpyjnius יורד (30 שניות)
-        echo "⏳ ממתין שpyjnius יורד..."
-        sleep 30
-        
-        # מנסה לתקן
-        echo "🔧 מנסה לתקן pyjnius..."
-        /tmp/patch_pyjnius.sh
-        
-        # ממתין לסיום הבנייה
-        echo "⏳ ממתין לסיום הבנייה..."
-        wait $BUILD_PID
-        BUILD_EXIT=$?
-        
-        # אם נכשל, מנסה לתקן ולהריץ שוב
-        if [ $BUILD_EXIT -ne 0 ]; then
-          echo "⚠️ בנייה נכשלה, מנסה לתקן ולהריץ שוב..."
-          /tmp/patch_pyjnius.sh
-          buildozer -v android debug
-        fi
+        buildozer -v android debug
     
     - name: 📤 Upload APK
       uses: actions/upload-artifact@v4
