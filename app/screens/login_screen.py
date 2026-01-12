@@ -6,11 +6,18 @@ Handles send_code, login, and disconnect functionality
 
 import asyncio
 import logging
+import os
+from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
 from app.config import Config
 from app.utils.logger import add_breadcrumb, capture_exception
+from app.utils import helpers
 
 logger = logging.getLogger(__name__)
+
+# Load KV file
+kv_file = os.path.join(os.path.dirname(__file__), '../kv/login.kv')
+Builder.load_file(kv_file)
 
 
 class LoginScreen(MDScreen):
@@ -180,16 +187,8 @@ class LoginScreen(MDScreen):
     
     def log(self, message):
         """Add message to log"""
-        from kivy.clock import Clock
-        def update_log(dt):
-            current = self.ids.log.text
-            self.ids.log.text = f"{current}\n{message}"
-        Clock.schedule_once(update_log)
+        helpers.log_message(self, message)
     
     def update_status(self, text, color):
         """Update status label"""
-        from kivy.clock import Clock
-        def update(dt):
-            self.ids.status.text = text
-            self.ids.status.theme_text_color = color
-        Clock.schedule_once(update)
+        helpers.update_status(self, text, color)

@@ -7,12 +7,19 @@ Handles backup process, progress tracking, and message transfer
 import asyncio
 import time
 import logging
+import os
+from kivy.lang import Builder
 from kivymd.uix.screen import MDScreen
 from app.config import Config
 from app.managers import ProgressManager
 from app.utils.logger import add_breadcrumb, capture_exception
+from app.utils import helpers
 
 logger = logging.getLogger(__name__)
+
+# Load KV file
+kv_file = os.path.join(os.path.dirname(__file__), '../kv/backup.kv')
+Builder.load_file(kv_file)
 
 
 class BackupScreen(MDScreen):
