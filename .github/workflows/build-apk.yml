@@ -153,7 +153,8 @@ jobs:
             PACKAGE="testkivymd"
             ;;
           full)
-            # New architecture - main.py already exists
+            # New modular architecture - use app/main.py
+            cp app/main.py main.py
             cp requirements_full.txt requirements.txt
             TITLE="Telegram Backup"
             PACKAGE="telegrambackup"
