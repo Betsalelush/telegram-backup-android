@@ -9,7 +9,7 @@ class Config:
     """Application configuration"""
     
     # Sentry
-    SENTRY_DSN = "https://your-sentry-dsn-here"
+    SENTRY_DSN = "https://1f490b846ede82cfc3d5f6f5eb23263b@o4510215210598400.ingest.de.sentry.io/4510674676744272"
     SENTRY_TRACES_SAMPLE_RATE = 1.0
     SENTRY_ENVIRONMENT = "production"
     
