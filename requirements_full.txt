@@ -1,3 +1,4 @@
 kivymd
 telethon
 sentry-sdk
+cryptography
