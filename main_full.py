@@ -878,8 +878,7 @@ class TelegramBackupApp(MDApp):
             except Exception as e:
                 error_msg = f"ERROR sending code: {e}"
                 self.log(error_msg)
-                self.update_status("Error sending code", "Error")
-                sentry_sdk.capture_exception(e)
+                self.update_status("Erfrom sentry_logger import logger, add_breadcrumb, set_user_context, set_transfer_context, capture_exception(e)
                 
                 # Re-enable send button on error
                 from kivy.clock import Clock
@@ -1056,19 +1055,6 @@ class TelegramBackupApp(MDApp):
                         self.log("Backup stopped")
                         break
                     
-                    if message and message.id:
-                        # בדיקה אם כבר שלחנו את ההודעה
-                        if message.id in self.sent_message_ids:
-                            skipped += 1
-                            continue
-                        
-                        # סינון סוגי קבצים
-                        should_send = False
-                        message_type = None
-                        
-                        if message.text and not message.media:
-                            should_send = file_types.get('text', True)
-                            message_type = "text"
                         elif message.photo:
                             should_send = file_types.get('photos', True)
                             message_type = "photo"
