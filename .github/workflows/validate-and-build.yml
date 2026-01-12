@@ -112,11 +112,11 @@ jobs:
         echo ""
         echo "✅ All ${#required_functions[@]} required functions found in main_full.py!"
     
-    - name: 🔍 Validate MASTER_PLAN functions (25+ required)
+    - name: 🔍 Validate MASTER_PLAN functions (28 required)
       run: |
         echo "🔍 Validating functions from MASTER_PLAN (managers + screens)..."
         
-        # List of 25+ required functions across managers and screens
+        # List of 28 required functions across managers and screens
         required_functions=(
           "add_account"
           "remove_account"
@@ -296,6 +296,20 @@ jobs:
     - name: 🧪 Run structure tests
       run: |
         echo "🧪 Running structure validation tests..."
+        
+        # Ensure required data files exist before running tests
+        mkdir -p data/sessions data/progress
+        
+        if [ ! -f data/accounts.json ]; then
+          echo '{"accounts": []}' > data/accounts.json
+          echo "  Created data/accounts.json"
+        fi
+        
+        if [ ! -f data/transfers.json ]; then
+          echo '{"transfers": []}' > data/transfers.json
+          echo "  Created data/transfers.json"
+        fi
+        
         python tests/test_structure.py
         echo "✅ Structure tests passed!"
     
@@ -306,8 +320,8 @@ jobs:
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
         echo "✓ Required libraries installed (Kivy, KivyMD, Telethon, Sentry, asyncio, json)"
-        echo "✓ 16+ functions validated in legacy/main_full.py"
-        echo "✓ 25+ functions validated in app modules (MASTER_PLAN)"
+        echo "✓ 16 functions validated in legacy/main_full.py"
+        echo "✓ 28 functions validated in app modules (MASTER_PLAN)"
         echo "✓ All required files verified"
         echo "✓ All required directories verified"
         echo "✓ Python syntax validation passed"
@@ -375,8 +389,13 @@ jobs:
         unzip -q commandlinetools-linux-11076708_latest.zip
         rm commandlinetools-linux-11076708_latest.zip
         
+        # Reorganize directory structure (move contents, not the latest dir itself)
         mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+        for item in cmdline-tools/*; do
+          if [ "$(basename "$item")" != "latest" ]; then
+            mv "$item" cmdline-tools/latest/ 2>/dev/null || true
+          fi
+        done
         
         mkdir -p tools/bin
         ln -s ../../cmdline-tools/latest/bin/sdkmanager tools/bin/sdkmanager
@@ -406,26 +425,35 @@ jobs:
     
     - name: 📦 Install and Patch pyjnius
       run: |
-        echo "📥 Downloading pyjnius..."
-        pip download pyjnius==1.5.0 --no-deps --dest /tmp --no-binary :all:
-        cd /tmp
-        tar -xzf pyjnius-*.tar.gz
+        echo "📥 Attempting to install pyjnius..."
         
-        extracted_dir=$(find . -maxdepth 1 -type d -name 'pyjnius-*' | head -n 1)
-        cd "$extracted_dir"
-        
-        echo "🔧 Patching pyjnius files (Python long → int)..."
-        find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
-          -e 's/isinstance(\([^,]*\), long)/isinstance(\1, int)/g' \
-          -e 's/, long)/, int)/g' \
-          -e 's/(long)/(int)/g' \
-          -e 's/\[long\]/[int]/g' \
-          {} +
-        
-        echo "📦 Installing patched pyjnius..."
-        pip install .
-        
-        echo "✅ pyjnius installed and patched!"
+        # Try installing directly first (newer versions may not need patching)
+        if pip install pyjnius==1.5.0 2>/dev/null; then
+          echo "✅ pyjnius installed directly (no patching needed)"
+        else
+          echo "⚠️ Direct install failed, attempting patched install..."
+          
+          # Download and patch if direct install fails
+          pip download pyjnius==1.5.0 --no-deps --dest /tmp --no-binary :all:
+          cd /tmp
+          tar -xzf pyjnius-*.tar.gz
+          
+          extracted_dir=$(find . -maxdepth 1 -type d -name 'pyjnius-*' | head -n 1)
+          cd "$extracted_dir"
+          
+          echo "🔧 Patching pyjnius files (Python long → int)..."
+          find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
+            -e 's/isinstance(\([^,]*\), long)/isinstance(\1, int)/g' \
+            -e 's/, long)/, int)/g' \
+            -e 's/(long)/(int)/g' \
+            -e 's/\[long\]/[int]/g' \
+            {} +
+          
+          echo "📦 Installing patched pyjnius..."
+          pip install .
+          
+          echo "✅ pyjnius installed with patching!"
+        fi
     
     - name: 🎯 Select version
       id: get_version
@@ -438,6 +466,12 @@ jobs:
     - name: 📄 Copy version files
       run: |
         VERSION=$VERSION
+        
+        # Backup original main.py if it exists
+        if [ -f main.py ]; then
+          cp main.py main.py.original
+          echo "  Backed up original main.py"
+        fi
         
         case $VERSION in
           crash_test)
@@ -459,6 +493,7 @@ jobs:
             PACKAGE="testkivymd"
             ;;
           full)
+            # For full version, use app/main.py as the entry point
             cp app/main.py main.py
             cp requirements_full.txt requirements.txt
             TITLE="Telegram Backup"
@@ -491,6 +526,11 @@ jobs:
           TELETHON=""
         fi
         
+        # Preserve original buildozer.spec as backup
+        if [ -f buildozer.spec ]; then
+          cp buildozer.spec buildozer.spec.original
+        fi
+        
         cat > buildozer.spec << EOF
         [app]
         title = $TITLE
@@ -498,6 +538,7 @@ jobs:
         package.domain = org.backup
         source.dir = .
         source.include_exts = py,png,jpg,kv,atlas
+        source.exclude_dirs = tests, .git, .github, __pycache__, legacy, docs, scripts
         version = 1.0
         
         requirements = python3,kivy==2.2.1,sentry-sdk==1.40.0$KIVYMD$TELETHON
@@ -517,7 +558,7 @@ jobs:
         warn_on_root = 0
         EOF
         
-        echo "✅ buildozer.spec created"
+        echo "✅ buildozer.spec created (original backed up as buildozer.spec.original)"
     
     - name: 🏗️ Build APK with Buildozer
       run: |
