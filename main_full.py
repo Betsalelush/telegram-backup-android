@@ -14,6 +14,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
 import sentry_sdk
+from sentry_logger import add_breadcrumb, set_user_context, set_transfer_context, capture_exception
 
 # Sentry - תופס crashes!
 sentry_sdk.init(
@@ -878,7 +879,8 @@ class TelegramBackupApp(MDApp):
             except Exception as e:
                 error_msg = f"ERROR sending code: {e}"
                 self.log(error_msg)
-                self.update_status("Erfrom sentry_logger import logger, add_breadcrumb, set_user_context, set_transfer_context, capture_exception(e)
+                self.update_status("Error sending code", "Error")
+                capture_exception(e)
                 
                 # Re-enable send button on error
                 from kivy.clock import Clock
