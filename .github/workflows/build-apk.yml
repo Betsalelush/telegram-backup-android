@@ -122,7 +122,7 @@ jobs:
     - name: 📦 Install and Patch pyjnius
       run: |
         echo "📥 מוריד pyjnius..."
-        pip download pyjnius==1.5.0 --no-deps --dest /tmp
+        pip download pyjnius==1.5.0 --no-deps --dest /tmp --no-binary :all:
         cd /tmp
         tar -xzf pyjnius-*.tar.gz
         cd pyjnius-*
