@@ -134,6 +134,10 @@ jobs:
         sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' jnius/jnius_utils.pxi
         sed -i 's/, long)/, int)/g' jnius/jnius_utils.pxi
         
+        echo "🔧 מתקן את jnius_conversion.pxi..."
+        sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' jnius/jnius_conversion.pxi
+        sed -i 's/, long)/, int)/g' jnius/jnius_conversion.pxi
+        
         echo "📦 מתקין את pyjnius המתוקן..."
         pip install .
         
