@@ -1,6 +1,10 @@
-# Managers package initialization
-from .account_manager import AccountManager
-from .transfer_manager import TransferManager
-from .progress_manager import ProgressManager
+```python
+"""
+Managers package - Business logic modules
+"""
+from app.managers.account_manager import AccountManager
+from app.managers.progress_manager import ProgressManager
+from app.managers.transfer_manager import TransferManager
 
-__all__ = ['AccountManager', 'TransferManager', 'ProgressManager']
+__all__ = ['AccountManager', 'ProgressManager', 'TransferManager']
+```
