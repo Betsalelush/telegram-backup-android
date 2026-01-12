@@ -152,48 +152,48 @@ jobs:
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "✅ בנייה הושלמה!"
     
-    - name: 🔍 Find APK
+    - name: 🔍 Find APK or ZIP
       id: find_apk
       run: |
-        echo "🔍 מחפש APK..."
+        echo "🔍 מחפש APK או ZIP..."
         
-        # Search for APK in multiple possible locations
-        APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
+        # Search for APK or ZIP in multiple possible locations
+        FILE_PATH=$(find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
         
-        if [ -z "$APK_PATH" ]; then
-          echo "❌ APK לא נמצא!"
+        if [ -z "$FILE_PATH" ]; then
+          echo "❌ APK או ZIP לא נמצא!"
           echo "📂 מחפש בכל המיקומים:"
-          find . -name "*.apk" -type f 2>/dev/null || echo "אין קבצי APK"
+          find . -type f -name "*.apk" -o -name "*.zip" 2>/dev/null || echo "אין קבצים מתאימים"
           exit 1
         fi
         
-        echo "✅ נמצא APK: $APK_PATH"
-        echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+        echo "✅ נמצא קובץ: $FILE_PATH"
+        echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
         
-        # Get APK info
-        APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-        echo "📦 גודל APK: $APK_SIZE"
-        echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+        # Get file info
+        FILE_SIZE=$(du -h "$FILE_PATH" | cut -f1)
+        echo "📦 גודל קובץ: $FILE_SIZE"
+        echo "file_size=$FILE_SIZE" >> $GITHUB_OUTPUT
     
-    - name: 📤 Upload APK
+    - name: 📤 Upload File
       uses: actions/upload-artifact@v4
       with:
-        name: telegram-backup-v3.0-${{ github.run_number }}.apk
-        path: ${{ steps.find_apk.outputs.apk_path }}
+        name: telegram-backup-v3.0-${{ github.run_number }}
+        path: ${{ steps.find_apk.outputs.file_path }}
         if-no-files-found: error
         retention-days: 30
     
     - name: 📊 Build Summary
       if: always()
       run: |
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━━━━━"
         echo "📊 סיכום Build"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "🐍 Python: ${{ env.PYTHON_VERSION }}"
         echo "🔨 Buildozer: ${{ env.BUILDOZER_VERSION }}"
         echo "📱 Android API: ${{ env.ANDROID_API }}"
         echo "🔧 NDK: ${{ env.ANDROID_NDK }}"
-        echo "📦 APK Size: ${{ steps.find_apk.outputs.apk_size }}"
+        echo "📦 File Size: ${{ steps.find_apk.outputs.file_size }}"
         echo "🔢 Build #: ${{ github.run_number }}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
