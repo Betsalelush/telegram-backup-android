@@ -181,28 +181,77 @@ jobs:
     # שלב 7: איתור והעלאת APK
     #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    - name: 🔍 Find APK
+    - name: 🔍 Find APK or ZIP
       id: find_apk
       run: |
-        echo "🔍 מחפש APK..."
+        echo "🔍 מחפש APK או ZIP..."
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
-        # Search for APK in multiple possible locations
-        APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | grep -E "(bin|outputs)" | head -n 1)
+        # Show current directory
+        echo "📂 תיקייה נוכחית: $(pwd)"
         
-        if [ -z "$APK_PATH" ]; then
-          echo "❌ APK לא נמצא!"
-          echo "📂 מחפש בכל המיקומים:"
-          find . -name "*.apk" -type f 2>/dev/null || echo "אין קבצי APK"
-          exit 1
+        # List all directories
+        echo "📋 רשימת תיקיות:"
+        ls -la
+        
+        # Search for APK files everywhere
+        echo ""
+        echo "🔍 מחפש קבצי APK בכל המקומות:"
+        find . -name "*.apk" -type f 2>/dev/null || echo "לא נמצאו קבצי APK"
+        
+        # Search for ZIP files
+        echo ""
+        echo "🔍 מחפש קבצי ZIP:"
+        find . -name "*.zip" -type f 2>/dev/null || echo "לא נמצאו קבצי ZIP"
+        
+        # Check bin directory specifically
+        echo ""
+        echo "📂 בודק תיקיית bin/:"
+        if [ -d "bin" ]; then
+          ls -la bin/
+        else
+          echo "תיקיית bin/ לא קיימת"
         fi
         
-        echo "✅ נמצא APK: $APK_PATH"
-        echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+        # Check .buildozer directory
+        echo ""
+        echo "📂 בודק תיקיית .buildozer/:"
+        if [ -d ".buildozer" ]; then
+          find .buildozer -name "*.apk" -o -name "*.zip" 2>/dev/null | head -10
+        else
+          echo "תיקיית .buildozer/ לא קיימת"
+        fi
         
-        # Get APK info
-        APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-        echo "📦 גודל APK: $APK_SIZE"
-        echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Try to find APK
+        APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
+        
+        if [ -n "$APK_PATH" ]; then
+          echo "✅ נמצא APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "📦 גודל: $APK_SIZE"
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Try to find ZIP
+        ZIP_PATH=$(find . -name "*.zip" -type f 2>/dev/null | head -n 1)
+        
+        if [ -n "$ZIP_PATH" ]; then
+          echo "✅ נמצא ZIP: $ZIP_PATH"
+          echo "apk_path=$ZIP_PATH" >> $GITHUB_OUTPUT
+          
+          ZIP_SIZE=$(du -h "$ZIP_PATH" | cut -f1)
+          echo "📦 גודל: $ZIP_SIZE"
+          echo "apk_size=$ZIP_SIZE" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "❌ APK או ZIP לא נמצא!"
+        exit 1
     
     - name: 📤 Upload APK
       uses: actions/upload-artifact@v4
