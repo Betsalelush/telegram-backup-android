@@ -89,18 +89,11 @@ jobs:
         # ארגון מבנה תיקיות - fix the mv command
         mkdir -p cmdline-tools/latest
         # Move contents, not the directory itself, checking each component
-        if [ -d "cmdline-tools/bin" ]; then
-          mv cmdline-tools/bin cmdline-tools/latest/ 2>/dev/null || true
-        fi
-        if [ -d "cmdline-tools/lib" ]; then
-          mv cmdline-tools/lib cmdline-tools/latest/ 2>/dev/null || true
-        fi
-        if [ -f "cmdline-tools/source.properties" ]; then
-          mv cmdline-tools/source.properties cmdline-tools/latest/ 2>/dev/null || true
-        fi
-        if [ -f "cmdline-tools/NOTICE.txt" ]; then
-          mv cmdline-tools/NOTICE.txt cmdline-tools/latest/ 2>/dev/null || true
-        fi
+        for component in bin lib source.properties NOTICE.txt; do
+          if [ -e "cmdline-tools/$component" ]; then
+            mv "cmdline-tools/$component" cmdline-tools/latest/ 2>/dev/null || true
+          fi
+        done
         
         # יצירת symlink ל-tools/bin כדי שbuildozer ימצא את sdkmanager
         mkdir -p tools/bin
@@ -179,6 +172,7 @@ jobs:
         # Note: pyjnius 1.6.1 should already be compatible with Cython 3.x
         # But if IF statements exist, we'll convert them to runtime conditionals
         # This is safer than using DEF which is for compile-time constants
+        # Limitation: Only catches IF/ELIF/ELSE at line start with optional whitespace
         find jnius -type f \( -name "*.pxi" -o -name "*.pyx" \) -exec sed -i \
           -e 's/^\(\s*\)IF \(.*\):/\1if \2:/g' \
           -e 's/^\(\s*\)ELIF \(.*\):/\1elif \2:/g' \
