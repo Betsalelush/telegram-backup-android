@@ -54,17 +54,6 @@ jobs:
           buildozer-${{ runner.os }}-${{ env.ANDROID_API }}-
           buildozer-${{ runner.os }}-
     
-    - name: 💾 Cache Android SDK/NDK
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.android
-          /usr/local/lib/android
-        key: android-sdk-ndk-${{ env.ANDROID_API }}-${{ env.ANDROID_NDK }}
-        restore-keys: |
-          android-sdk-ndk-${{ env.ANDROID_API }}-
-          android-sdk-ndk-
-    
     - name: 📦 Install system dependencies
       run: |
         echo "📦 מתקין תלויות מערכת..."
