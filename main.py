@@ -66,6 +66,14 @@ def main():
                 sentry_logger.capture_exception(e, {"context": "startup_runtime_error"})
                 time.sleep(2)
             except: pass
+            
+        # Emergency local log
+        try:
+            with open("crash_log.txt", "w") as f:
+                f.write(traceback.format_exc())
+            print("Crash log written to crash_log.txt")
+        except: pass
+        
         raise
 
 if __name__ == '__main__':
