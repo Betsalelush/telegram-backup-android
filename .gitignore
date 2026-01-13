@@ -38,3 +38,7 @@ data/sessions/*
 data/progress/*
 !data/sessions/.gitkeep
 !data/progress/.gitkeep
+
+check_sentry_logs.py
+
+check_github_logs.py
