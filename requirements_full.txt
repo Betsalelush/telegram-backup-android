@@ -4,3 +4,5 @@ kivymd==1.2.0
 sentry-sdk==1.40.0
 Cython==0.29.36
 pyjnius==1.6.1
+qrcode
+pyshorteners

@@ -207,6 +207,42 @@ class AccountManager:
         except Exception as e:
             logger.error(f"Error connecting account {account_id}: {e}")
             return False
+
+    async def start_qr_auth(self, account_id: str):
+        """
+        Start QR authentication for account
+        
+        Args:
+            account_id: Account ID
+            
+        Returns:
+            Tuple[qr_login, TelegramClient]: QR login object and client
+        """
+        account = self.get_account(account_id)
+        if not account:
+            logger.error(f"Account not found: {account_id}")
+            return None, None
+            
+        try:
+            # Create client
+            client = TelegramClient(
+                account['session_path'],
+                int(account['api_id']),
+                account['api_hash']
+            )
+            
+            await client.connect()
+            
+            if await client.is_user_authorized():
+                logger.info(f"Account {account_id} already authorized")
+                return None, client
+                
+            qr_login = await client.qr_login()
+            return qr_login, client
+            
+        except Exception as e:
+            logger.error(f"Error starting QR auth for {account_id}: {e}")
+            return None, None
     
     async def disconnect_account(self, account_id: str):
         """

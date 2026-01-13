@@ -10,6 +10,7 @@ from kivymd.uix.textfield import MDTextField
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.label import MDLabel
 from kivy.properties import NumericProperty
+from kivy.uix.widget import Widget
 
 from ..managers.transfer_manager import TransferManager
 from ..managers.account_manager import AccountManager

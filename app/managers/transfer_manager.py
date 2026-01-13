@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
-from telethon.tl.types import Message
+from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument
 
 from ..config import Config
 from ..utils.logger import logger, add_breadcrumb
@@ -187,7 +187,7 @@ class TransferManager:
             
             # Transfer
             try:
-                success = await self.transfer_single_message(client, message, source, target)
+                success = await self.transfer_single_message(client, message, source, target, file_types)
                 if success:
                     session.update_stats(sent=1, success=True)
                 else:
@@ -215,11 +215,42 @@ class TransferManager:
             
         return False
 
-    async def transfer_single_message(self, client, message, source, target):
-        """Actual transfer logic"""
-        # Simply forward for now
-        await client.forward_messages(target, message, source)
-        return True
+    async def transfer_single_message(self, client, message, source, target, file_types: List[str] = None):
+        """Actual transfer logic - Copy without forward tag"""
+        try:
+            # Media
+            if message.media:
+                file_to_send = message.media
+                
+                # Check specific media types if needed (though is_message_allowed already filtered)
+                # We do this to ensure we send the right object
+                if isinstance(message.media, MessageMediaPhoto):
+                    file_to_send = message.photo
+                elif isinstance(message.media, MessageMediaDocument):
+                    file_to_send = message.document
+                
+                await client.send_file(
+                    target,
+                    file=file_to_send,
+                    caption=message.text or ''
+                )
+                logger.info("Copied media message")
+                return True
+                
+            # Text
+            elif message.text:
+                await client.send_message(target, message.text)
+                logger.info("Copied text message")
+                return True
+                
+            return False
+            
+        except Exception as e:
+            logger.error(f"Copy error: {e}")
+            # Fallback to forward if copy fails? No, better to fail and retry or log.
+            # But maybe for some specific types forward is safer? 
+            # Sticking to requested "no credit" requirement.
+            raise e
 
     async def check_global_rate_limit(self):
         """Global rate limiter implementation"""
