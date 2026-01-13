@@ -1,19 +1,19 @@
 [app]
-title = Test Basic
-package.name = testbasic
-package.domain = org.backup
+title = Telegram Backup
+package.name = telegrambackup
+package.domain = org.bezalel
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-source.exclude_dirs = legacy, tests, bin, .buildozer, .git, __pycache__
-version = 1.0
+source.exclude_dirs = maxuser, tests, bin, .buildozer, .git, __pycache__, .github, node_modules, .idea, .vscode
+version = 3.0
 
-requirements = python3,kivy==2.2.1,sentry-sdk==1.40.0
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,asyncio
 
 orientation = portrait
 fullscreen = 0
 
-android.permissions = INTERNET,ACCESS_NETWORK_STATE
-android.api = 31
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,FOREGROUND_SERVICE
+android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
 android.accept_sdk_license = True
