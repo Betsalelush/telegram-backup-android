@@ -316,12 +316,11 @@ class AccountsScreen(Screen):
     async def _process_qr(self, account_id):
         """Async QR processor"""
         from kivymd.toast import toast
-        import qrcode
-        import os
-        from ..config import Config
+        import urllib.parse
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.button import MDFlatButton
         from kivy.uix.image import AsyncImage
+        from kivymd.uix.label import MDLabel
 
         toast("Generating QR Code...")
         
@@ -332,19 +331,15 @@ class AccountsScreen(Screen):
                 else: toast("Failed to start QR Login")
                 return
 
-            # Generate Image
+            # Use Online QR API to avoid Pillow/Freetype build dependency
             url = qr_login.url
-            img = qrcode.make(url)
-            qr_path = os.path.join(Config.TEMP_DIR, f"qr_{account_id}.png")
-            
-            # Ensure temp dir
-            os.makedirs(os.path.dirname(qr_path), exist_ok=True)
-            img.save(qr_path)
+            encoded_url = urllib.parse.quote(url)
+            qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={encoded_url}"
             
             # Show Dialog
-            content = MDBoxLayout(orientation='vertical', size_hint_y=None, height="300dp")
-            content.add_widget(AsyncImage(source=qr_path, size_hint=(1, 1)))
-            content.add_widget(MDLabel(text="Scan with Telegram Mobile App", halign="center"))
+            content = MDBoxLayout(orientation='vertical', size_hint_y=None, height="350dp", spacing="10dp")
+            content.add_widget(AsyncImage(source=qr_api_url, size_hint=(1, 1)))
+            content.add_widget(MDLabel(text="Scan with Telegram Mobile App", halign="center", theme_text_color="Secondary"))
             
             self.qr_dialog = MDDialog(
                 title="Scan QR Code",
