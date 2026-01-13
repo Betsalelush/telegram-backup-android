@@ -21,25 +21,29 @@ except Exception as e:
     traceback.print_exc()
 
 
+
 def main():
     import asyncio
     
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
+    # Define the async entry point
+    async def run_app():
         logger.info("Importing main app...")
-        from app.main import TelegramBackupApp
-        
-        logger.info("Starting app in ASYNC mode...")
-        app = TelegramBackupApp()
-        
-        # Use simple run for now if async_run causes issues with KivyMD 1.2.0 compatibility
-        # But Telethon NEEDS async.
-        # Kivy 2.2.0+ supports async_run properly.
-        # Let's try to run the async loop
-        
-        loop.run_until_complete(app.async_run(async_lib='asyncio'))
+        try:
+            from app.main import TelegramBackupApp
+            logger.info("Starting app in ASYNC mode (asyncio.run)...")
+            app = TelegramBackupApp()
+            await app.async_run(async_lib='asyncio')
+        except Exception as e:
+            logger.error(f"Error inside async_run: {e}")
+            raise e
+
+    try:
+        # Run the top-level entry point
+        if sys.platform == 'win32':
+             # Windows specific policy often needed for Proactor/Selector issues
+             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+             
+        asyncio.run(run_app())
         
     except ImportError as e:
         logger.error(f"Import Error during startup: {e}")
@@ -63,8 +67,6 @@ def main():
                 time.sleep(2)
             except: pass
         raise
-    finally:
-        loop.close()
 
 if __name__ == '__main__':
     main()
