@@ -66,6 +66,20 @@ class TransferManager:
             bool: True if transferred successfully
         """
         try:
+            # Check file types
+            if message.voice and not Config.SUPPORTED_FILE_TYPES.get('voice', True):
+                return False
+            if message.audio and not Config.SUPPORTED_FILE_TYPES.get('audio', True):
+                return False
+            if message.video and not Config.SUPPORTED_FILE_TYPES.get('videos', True):
+                return False
+            if message.photo and not Config.SUPPORTED_FILE_TYPES.get('photos', True):
+                return False
+            if message.sticker and not Config.SUPPORTED_FILE_TYPES.get('stickers', True):
+                return False
+            if message.document and not Config.SUPPORTED_FILE_TYPES.get('documents', True):
+                return False
+            
             if method == "forward":
                 # Forward with credit
                 await client.forward_messages(

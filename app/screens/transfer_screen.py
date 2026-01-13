@@ -182,7 +182,7 @@ class TransferScreen(Screen):
             messages = []
             async for message in clients[0].iter_messages(source_entity):
                 messages.append(message)
-                if len(messages) >= 100:  # Limit for demo
+                if len(messages) >= 10000:  # Increased limit for production
                     break
             
             logger.info(f"Found {len(messages)} messages to transfer")
