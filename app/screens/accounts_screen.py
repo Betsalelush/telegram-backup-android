@@ -7,6 +7,7 @@ from kivymd.uix.list import MDList, TwoLineAvatarIconListItem
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDFloatingActionButton
 from kivymd.uix.textfield import MDTextField
+from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivy.properties import ObjectProperty
 
@@ -199,7 +200,7 @@ class AccountsScreen(Screen):
         if action == 'connect':
             # Connect account (async)
             import asyncio
-            asyncio.create_task(self.account_manager.connect_account(account_id))
+            asyncio.create_task(self._handle_manual_login(account_id))
             logger.info(f"Connecting account: {account_id}")
             
         elif action == 'disconnect':
@@ -390,6 +391,75 @@ class AccountsScreen(Screen):
         if hasattr(self, 'qr_dialog') and self.qr_dialog:
             self.qr_dialog.dismiss()
             self.qr_dialog = None
+
+    async def _handle_manual_login(self, account_id):
+        """Handle the interactive login flow"""
+        from kivymd.toast import toast
+        
+        # 1. Try to connect
+        success = await self.account_manager.connect_account(account_id)
+        if success:
+            toast("Connected successfully!")
+            self.load_accounts_list()
+            return
+            
+        # 2. If not authorized, start SMS flow
+        try:
+            toast("Requesting SMS code...")
+            res = await self.account_manager.send_login_code(account_id)
+            self.phone_code_hash = res.phone_code_hash
+            self.show_auth_dialog(account_id, "Enter SMS Code", mode="code")
+        except Exception as e:
+            toast(f"Error: {e}")
+
+    def show_auth_dialog(self, account_id, title, mode="code"):
+        """Show dialog for code or password"""
+        content = MDBoxLayout(orientation='vertical', adaptive_height=True, spacing="12dp")
+        self.auth_input = MDTextField(hint_text=title, mode="rectangle")
+        if mode == "password":
+            self.auth_input.password = True
+        content.add_widget(self.auth_input)
+        
+        self.auth_dialog = MDDialog(
+            title=title,
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(text="CANCEL", on_release=lambda x: self.auth_dialog.dismiss()),
+                MDRaisedButton(text="SUBMIT", on_release=lambda x: self._submit_auth(account_id, mode))
+            ]
+        )
+        self.auth_dialog.open()
+
+    def _submit_auth(self, account_id, mode):
+        """Handle auth submission"""
+        val = self.auth_input.text
+        self.auth_dialog.dismiss()
+        
+        import asyncio
+        if mode == "code":
+            asyncio.create_task(self._finish_login(account_id, val))
+        else:
+            asyncio.create_task(self._finish_login(account_id, None, password=val))
+
+    async def _finish_login(self, account_id, code, password=None):
+        """Finish the login process"""
+        from kivymd.toast import toast
+        try:
+            res = await self.account_manager.sign_in(
+                account_id, 
+                getattr(self, 'phone_code_hash', None), 
+                code, 
+                password=password
+            )
+            
+            if res == "PASSWORD_NEEDED":
+                self.show_auth_dialog(account_id, "Enter 2FA Password", mode="password")
+            else:
+                toast("Login Successful!")
+                self.load_accounts_list()
+        except Exception as e:
+            toast(f"Login failed: {e}")
 
     def go_back(self):
         """Go back to previous screen"""

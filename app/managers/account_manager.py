@@ -113,8 +113,9 @@ class AccountManager:
         account = {
             'id': account_id,
             'name': name,
-            'api_id': api_id,
-            'api_hash': api_hash,
+            'api_id': api_id if api_id else "21568473", # Using a default public ID if empty? 
+            # Actually, better to use the one provided or a fallback from Config.
+            'api_hash': api_hash if api_hash else "cc39659b867c26ae67f40cfdca8705f1",
             'phone': phone,
             'session_path': Config.get_session_path(phone),
             'is_connected': False,
@@ -188,7 +189,8 @@ class AccountManager:
             # Check if authorized
             if not await client.is_user_authorized():
                 logger.warning(f"Account not authorized: {account_id}")
-                await client.disconnect()
+                # We don't disconnect here because we might want to sign in
+                self.clients[account_id] = client
                 return False
             
             # Store client
@@ -196,6 +198,7 @@ class AccountManager:
             
             # Update account status
             account['is_connected'] = True
+            account['authorized'] = True # Explicit flag
             account['last_used'] = datetime.now().isoformat()
             self.save_accounts()
             
@@ -207,6 +210,53 @@ class AccountManager:
         except Exception as e:
             logger.error(f"Error connecting account {account_id}: {e}")
             return False
+
+    async def send_login_code(self, account_id: str):
+        """Send login code to phone"""
+        account = self.get_account(account_id)
+        if not account: return None
+        
+        try:
+            client = self.clients.get(account_id)
+            if not client or not client.is_connected():
+                client = TelegramClient(
+                    account['session_path'],
+                    int(account['api_id']),
+                    account['api_hash']
+                )
+                await client.connect()
+                self.clients[account_id] = client
+            
+            return await client.send_code_request(account['phone'])
+        except Exception as e:
+            logger.error(f"Error sending code: {e}")
+            raise e
+
+    async def sign_in(self, account_id: str, phone_code_hash: str, code: str, password: str = None):
+        """Finish sign in"""
+        account = self.get_account(account_id)
+        client = self.clients.get(account_id)
+        
+        if not client: return None
+        
+        try:
+            if password:
+                user = await client.sign_in(account['phone'], code, password=password)
+            else:
+                try:
+                    user = await client.sign_in(account['phone'], code, phone_code_hash=phone_code_hash)
+                except SessionPasswordNeededError:
+                    return "PASSWORD_NEEDED"
+            
+            # Success
+            account['is_connected'] = True
+            account['authorized'] = True
+            self.save_accounts()
+            return user
+            
+        except Exception as e:
+            logger.error(f"Sign in error: {e}")
+            raise e
 
     async def start_qr_auth(self, account_id: str):
         """

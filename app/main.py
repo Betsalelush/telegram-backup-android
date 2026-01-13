@@ -77,15 +77,14 @@ class TelegramBackupApp(MDApp):
     
     def setup_config(self):
         """Setup configuration with base directory"""
-        try:
-            # Try Android storage
-            from android.storage import app_storage_path
-            base_dir = app_storage_path()
-            logger.info(f"Android: Using directory {base_dir}")
-        except ImportError:
-            # Desktop - use current directory
-            base_dir = os.getcwd()
-            logger.info(f"Desktop: Using directory {base_dir}")
+        # Use user_data_dir which works on Android (private files) and Desktop
+        base_dir = self.user_data_dir
+        
+        # Ensure directory exists
+        if not os.path.exists(base_dir):
+            os.makedirs(base_dir, exist_ok=True)
+            
+        logger.info(f"Using application directory: {base_dir}")
         
         # Setup config
         Config.setup(base_dir)
