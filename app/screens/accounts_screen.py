@@ -5,7 +5,7 @@ Manage Telegram accounts
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.list import MDList, TwoLineAvatarIconListItem
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDFloatingActionButton
 from kivymd.uix.textfield import MDTextField
 from kivy.properties import ObjectProperty
 
@@ -44,7 +44,7 @@ class AccountsScreen(Screen):
         """Build screen UI"""
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.toolbar import MDTopAppBar
-        from kivymd.uix.floatingactionbutton import MDFloatingActionButton
+
         
         layout = MDBoxLayout(orientation='vertical')
         
