@@ -32,17 +32,26 @@ class ActionScreen(Screen):
     
     def build_ui(self):
         """Build screen UI"""
+        from kivy.uix.widget import Widget
+
+        # Main layout with centering
         layout = MDBoxLayout(
             orientation='vertical',
             padding=20,
-            spacing=20
+            spacing=30,  # Increased spacing
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            adaptive_height=True 
         )
         
+        # Add top spacer to push content to center
+        # layout.add_widget(Widget())
+
         # Title
         title = MDLabel(
             text="Telegram Backup",
             halign="center",
             font_style="H4",
+            theme_text_color="Primary",
             size_hint_y=None,
             height=100
         )
@@ -52,7 +61,7 @@ class ActionScreen(Screen):
         buttons = [
             ("New Transfer", "transfer"),
             ("Manage Accounts", "accounts"),
-            ("Settings", "settings"),
+            # ("Settings", "settings"), # Disabled until implemented
         ]
         
         for text, screen in buttons:
@@ -60,12 +69,26 @@ class ActionScreen(Screen):
                 text=text,
                 size_hint=(0.8, None),
                 height=60,
-                pos_hint={"center_x": 0.5}
+                pos_hint={"center_x": 0.5},
+                elevation=2
             )
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
             layout.add_widget(btn)
         
-        self.add_widget(layout)
+        # Add bottom spacer
+        # layout.add_widget(Widget())
+
+        # Container to center the layout vertically in the screen
+        container = MDBoxLayout(
+            orientation='vertical',
+            padding=0,
+            spacing=0
+        )
+        container.add_widget(Widget()) # Top spacer
+        container.add_widget(layout)   # Centered content
+        container.add_widget(Widget()) # Bottom spacer
+
+        self.add_widget(container)
     
     def navigate_to(self, screen_name: str):
         """

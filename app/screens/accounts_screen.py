@@ -7,6 +7,7 @@ from kivymd.uix.list import MDList, TwoLineAvatarIconListItem
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDFloatingActionButton
 from kivymd.uix.textfield import MDTextField
+from kivymd.uix.boxlayout import MDBoxLayout
 from kivy.properties import ObjectProperty
 
 from ..managers.account_manager import AccountManager
