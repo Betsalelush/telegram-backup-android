@@ -55,40 +55,51 @@ class TransferScreen(Screen):
         from kivymd.uix.gridlayout import MDGridLayout
         from kivymd.uix.list import MDList
         
-        layout = MDBoxLayout(orientation='vertical')
+        # Root layout (Screen is FloatLayout)
+        
+        # 1. Main structure (Vertical Box)
+        main_box = MDBoxLayout(orientation='vertical', pos_hint={"top": 1})
         
         # Toolbar
-        toolbar = MDTopAppBar(title="Transfer Dashboard")
+        toolbar = MDTopAppBar(title="Transfer Dashboard", elevation=4, pos_hint={"top": 1})
         toolbar.left_action_items = [["arrow-left", lambda x: self.go_back()]]
-        layout.add_widget(toolbar)
+        main_box.add_widget(toolbar)
         
-        # Split Screen: Top = Config, Bottom = Active Tasks
+        # Split Content
+        # We want the "Top Section" (New Task) to take up space, and "Bottom Section" (Tasks) below.
         
-        # --- Top Section: New Task Config (Scrollable) ---
+        # --- Top Section: New Task Config ---
+        # Using a ScrollView to prevent overflow on small screens
+        # Content inside gets padding to "center" it visually if there is space?
+        # Actually, user wants buttons "in the middle". 
+        # By removing spacers and letting it pack top-down, it should be fine.
+        
         top_scroll = MDScrollView(size_hint_y=0.6)
-        content = MDBoxLayout(orientation='vertical', padding=20, spacing=15, adaptive_height=True)
+        content = MDBoxLayout(orientation='vertical', padding=[20, 20, 20, 20], spacing=15, adaptive_height=True)
         
-        # 1. Channels
-        content.add_widget(MDLabel(text="New Task", font_style="H6", theme_text_color="Primary"))
+        # Title
+        content.add_widget(MDLabel(text="New Task", font_style="H6", theme_text_color="Primary", adaptive_height=True))
         
+        # Fields
         self.source_field = MDTextField(hint_text="Source Channel (ID or Link)", mode="rectangle")
         content.add_widget(self.source_field)
         
         self.target_field = MDTextField(hint_text="Target Channel (ID or Link)", mode="rectangle")
         content.add_widget(self.target_field)
         
-        # 2. Options
+        # Options
         grid = MDGridLayout(cols=2, spacing=10, adaptive_height=True)
         self.start_id_field = MDTextField(hint_text="Start ID (0=Oldest)", text="0", input_filter="int", mode="rectangle")
         grid.add_widget(self.start_id_field)
         content.add_widget(grid)
         
-        # 3. Accounts & types (Simplified for height)
+        # Accounts
+        content.add_widget(MDLabel(text="Select Accounts:", font_style="Subtitle2", adaptive_height=True))
         self.accounts_grid = MDGridLayout(cols=1, adaptive_height=True, spacing=5)
-        content.add_widget(MDLabel(text="Select Accounts:", font_style="Subtitle2"))
         content.add_widget(self.accounts_grid)
         
-        # 4. File Types
+        # File Types
+        content.add_widget(MDLabel(text="File Types:", font_style="Subtitle2", adaptive_height=True))
         types_layout = MDGridLayout(cols=3, adaptive_height=True, spacing=5)
         file_types = ["Images", "Videos", "Audio", "Documents", "Text"]
         for ftype in file_types:
@@ -96,27 +107,37 @@ class TransferScreen(Screen):
             chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp", "30dp"))
             self.type_checks[ftype.lower()] = chk
             box.add_widget(chk)
-            box.add_widget(MDLabel(text=ftype, font_style="Caption"))
+            box.add_widget(MDLabel(text=ftype, font_style="Caption", adaptive_height=True, pos_hint={"center_y": .5}))
             types_layout.add_widget(box)
         content.add_widget(types_layout)
         
-        # Start Button
-        self.start_btn = MDRaisedButton(text="🚀 START NEW TASK", size_hint_x=1, md_bg_color=(0, 0.7, 0, 1))
+        # Start Button (Centered/Full Width)
+        # Adding some top spacing
+        content.add_widget(Widget(size_hint_y=None, height="20dp"))
+        
+        self.start_btn = MDRaisedButton(
+            text="🚀 START NEW TASK", 
+            size_hint_x=1, 
+            md_bg_color=(0, 0.7, 0, 1),
+            pos_hint={"center_x": 0.5}
+        )
         self.start_btn.bind(on_release=self.start_transfer)
         content.add_widget(self.start_btn)
         
         top_scroll.add_widget(content)
-        layout.add_widget(top_scroll)
+        main_box.add_widget(top_scroll)
         
         # --- Bottom Section: Active Tasks List ---
-        layout.add_widget(MDLabel(text="  Active Tasks", size_hint_y=None, height=30, md_bg_color=(0.9,0.9,0.9,1)))
+        header_box = MDBoxLayout(adaptive_height=True, padding=[10, 5], md_bg_color=(0.9,0.9,0.9,1))
+        header_box.add_widget(MDLabel(text="Active Tasks", font_style="Subtitle1"))
+        main_box.add_widget(header_box)
         
         bottom_scroll = MDScrollView(size_hint_y=0.4)
         self.tasks_list = MDList()
         bottom_scroll.add_widget(self.tasks_list)
-        layout.add_widget(bottom_scroll)
+        main_box.add_widget(bottom_scroll)
         
-        self.add_widget(layout)
+        self.add_widget(main_box)
 
     def refresh_accounts(self):
         """Refresh account list checkboxes"""

@@ -42,31 +42,38 @@ class AccountsScreen(Screen):
         add_breadcrumb("AccountsScreen initialized")
     
     def build_ui(self):
-        """Build screen UI"""
+        """Build screen UI with correct layout"""
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.toolbar import MDTopAppBar
-
+        from kivymd.uix.scrollview import MDScrollView
         
-        layout = MDBoxLayout(orientation='vertical')
+        # Root layout (Screen is FloatLayout)
+        
+        # 1. Main structure (Vertical Box)
+        main_box = MDBoxLayout(orientation='vertical', pos_hint={"top": 1})
         
         # Toolbar
-        toolbar = MDTopAppBar(title="Accounts")
+        toolbar = MDTopAppBar(title="Accounts", elevation=4, pos_hint={"top": 1})
         toolbar.left_action_items = [["arrow-left", lambda x: self.go_back()]]
-        layout.add_widget(toolbar)
+        main_box.add_widget(toolbar)
         
-        # Accounts list
+        # ScrollView for Accounts
+        scroll = MDScrollView()
         self.accounts_list = MDList()
-        layout.add_widget(self.accounts_list)
+        scroll.add_widget(self.accounts_list)
+        main_box.add_widget(scroll)
         
-        # Add button
+        self.add_widget(main_box)
+        
+        # 2. FAB (Floating) - Add directly to Screen
         add_btn = MDFloatingActionButton(
             icon="plus",
-            pos_hint={"center_x": 0.9, "center_y": 0.1}
+            pos_hint={"right": 0.95, "bottom": 0.05} # KivyMD < 2.0 uses different hints sometimes, but standard is x/y or right/top
         )
+        # Using standard Kivy pos_hint
+        add_btn.pos_hint = {"right": 0.95, "y": 0.05}
         add_btn.bind(on_release=self.show_add_dialog)
-        layout.add_widget(add_btn)
-        
-        self.add_widget(layout)
+        self.add_widget(add_btn)
     
     def on_enter(self):
         """Called when screen is entered"""
