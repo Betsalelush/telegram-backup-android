@@ -96,8 +96,38 @@ class TransferScreen(Screen):
         grid = MDGridLayout(cols=2, spacing=10, adaptive_height=True)
         self.start_id_field = MDTextField(hint_text="Start ID (0=Oldest)", text="0", input_filter="int", mode="rectangle")
         grid.add_widget(self.start_id_field)
+        
+        # URL Shortener Button
+        from kivymd.uix.button import MDIconButton
+        shorten_btn = MDIconButton(icon="link-variant-plus", tooltip_text="Shorten Links")
+        shorten_btn.bind(on_release=self.shorten_links)
+        grid.add_widget(shorten_btn)
         top_content.add_widget(grid)
         
+        # Transfer Mode Header
+        top_content.add_widget(MDLabel(text="Transfer Mode:", font_style="Subtitle2", adaptive_height=True))
+        
+        # Transfer Mode Selector (Radio Buttons effect)
+        self.mode_checks = {}
+        modes_layout = MDGridLayout(cols=3, adaptive_height=True, spacing=5)
+        modes = [("Forward", "forward"), ("Copy (No Credit)", "copy"), ("Download & Upload", "download_upload")]
+        
+        # Default to 'copy'
+        self.selected_mode = "copy"
+        
+        for label, value in modes:
+            box = MDBoxLayout(adaptive_height=True)
+            chk = MDCheckbox(group="mode", size_hint=(None, None), size=("30dp", "30dp"))
+            if value == "copy": chk.active = True
+            
+            chk.bind(active=lambda instance, val, v=value: self.set_mode(v, val))
+            
+            box.add_widget(chk)
+            box.add_widget(MDLabel(text=label, font_style="Caption", adaptive_height=True, pos_hint={"center_y": .5}))
+            modes_layout.add_widget(box)
+            
+        top_content.add_widget(modes_layout)
+
         # Accounts Header
         top_content.add_widget(MDLabel(text="Select Accounts:", font_style="Subtitle2", adaptive_height=True))
         self.accounts_grid = MDGridLayout(cols=1, adaptive_height=True, spacing=5)
@@ -185,7 +215,8 @@ class TransferScreen(Screen):
             'target': target,
             'accounts': selected_accounts,
             'start_id': start_id,
-            'file_types': selected_types
+            'file_types': selected_types,
+            'mode': self.selected_mode
         }
         
         # Create Session in Manager
@@ -249,6 +280,30 @@ class TransferScreen(Screen):
 
     def stop_transfer(self, *args):
         pass # Per task now
+
+    def set_mode(self, value, is_active):
+        """Update selected mode"""
+        if is_active:
+            self.selected_mode = value
+            logger.info(f"Selected transfer mode: {value}")
+
+    def shorten_links(self, *args):
+        """Shorten source and target links"""
+        from ..utils.url_shortener import shorten_url
+        from kivymd.toast import toast
+        
+        s_text = self.source_field.text
+        t_text = self.target_field.text
+        
+        if s_text and "http" in s_text:
+            new_s = shorten_url(s_text)
+            self.source_field.text = new_s
+            toast("Source URL Shortened")
+            
+        if t_text and "http" in t_text:
+            new_t = shorten_url(t_text)
+            self.target_field.text = new_t
+            toast("Target URL Shortened")
 
     def go_back(self):
         self.manager.current = 'action'

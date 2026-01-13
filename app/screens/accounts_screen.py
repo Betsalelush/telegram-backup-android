@@ -216,6 +216,181 @@ class AccountsScreen(Screen):
         # Refresh list
         self.load_accounts_list()
     
+    def load_accounts_list(self):
+        """Load and display accounts list"""
+        from kivymd.uix.list import IconRightWidget, IconLeftWidget
+        
+        self.accounts_list.clear_widgets()
+        
+        accounts = self.account_manager.get_all_accounts()
+        
+        if not accounts:
+            # Show empty state? For now just empty list
+            pass
+            
+        for acc in accounts:
+            is_connected = acc.get('authorized', False)
+            status_text = "Connected" if is_connected else "Not Connected"
+            icon_name = "check-circle" if is_connected else "alert-circle"
+            icon_color = (0, 1, 0, 1) if is_connected else (1, 0, 0, 1)
+            
+            item = TwoLineAvatarIconListItem(
+                text=acc['name'],
+                secondary_text=f"{acc.get('phone', 'Unknown')} | {status_text}"
+            )
+            
+            # Left Icon (Status)
+            icon = IconLeftWidget(icon=icon_name)
+            icon.theme_text_color = "Custom"
+            icon.text_color = icon_color
+            item.add_widget(icon)
+            
+            # Right Action Buttons container (not standard in TwoLineAvatarIconListItem, 
+            # usually only one right widget. We'll use IconRightWidget with 'delete' for now, 
+            # and click on item to connect?)
+            
+            # Better approach: Click on item opens menu or attempts connect.
+            # But user wants specific QR button.
+            # Let's make the item click trigger options.
+            
+            # Or use IconRightWidget which triggers delete.
+            del_btn = IconRightWidget(icon="delete", on_release=lambda x, aid=acc['id']: self.on_account_action(aid, 'delete'))
+            item.add_widget(del_btn)
+            
+            # Bind item click
+            item.bind(on_release=lambda x, aid=acc['id']: self.show_account_options(aid))
+            
+            self.accounts_list.add_widget(item)
+
+    def show_account_options(self, account_id):
+        """Show options for account"""
+        from kivymd.uix.bottomsheet import MDCustomBottomSheet
+        from kivymd.uix.list import OneLineIconListItem
+        
+        # Determine status
+        account = self.account_manager.get_account(account_id)
+        if not account: return
+        
+        is_connected = account.get('authorized', False)
+        
+        # Build menu content
+        content = MDBoxLayout(orientation='vertical', adaptive_height=True)
+        
+        if not is_connected:
+            # Connect SMS
+            item_sms = OneLineIconListItem(text="Connect via SMS")
+            item_sms.add_widget(IconLeftWidget(icon="message"))
+            item_sms.bind(on_release=lambda x: self.deferred_action(account_id, 'connect'))
+            content.add_widget(item_sms)
+            
+            # Connect QR
+            item_qr = OneLineIconListItem(text="Connect via QR Code")
+            item_qr.add_widget(IconLeftWidget(icon="qrcode-scan"))
+            item_qr.bind(on_release=lambda x: self.start_qr_flow(account_id))
+            content.add_widget(item_qr)
+        else:
+            # Disconnect
+            item_disc = OneLineIconListItem(text="Disconnect")
+            item_disc.add_widget(IconLeftWidget(icon="logout"))
+            item_disc.bind(on_release=lambda x: self.deferred_action(account_id, 'disconnect'))
+            content.add_widget(item_disc)
+            
+        self.bottom_sheet = MDCustomBottomSheet(screen=content)
+        self.bottom_sheet.open()
+
+    def deferred_action(self, account_id, action):
+        """Close sheet and run action"""
+        if hasattr(self, 'bottom_sheet'):
+            self.bottom_sheet.dismiss()
+        self.on_account_action(account_id, action)
+
+    def start_qr_flow(self, account_id):
+        """Start QR Login Flow"""
+        if hasattr(self, 'bottom_sheet'):
+            self.bottom_sheet.dismiss()
+            
+        import asyncio
+        asyncio.create_task(self._process_qr(account_id))
+
+    async def _process_qr(self, account_id):
+        """Async QR processor"""
+        from kivymd.toast import toast
+        import qrcode
+        import os
+        from ..config import Config
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton
+        from kivy.uix.image import AsyncImage
+
+        toast("Generating QR Code...")
+        
+        try:
+            qr_login, client = await self.account_manager.start_qr_auth(account_id)
+            if not qr_login:
+                if client: toast("Already connected!")
+                else: toast("Failed to start QR Login")
+                return
+
+            # Generate Image
+            url = qr_login.url
+            img = qrcode.make(url)
+            qr_path = os.path.join(Config.TEMP_DIR, f"qr_{account_id}.png")
+            
+            # Ensure temp dir
+            os.makedirs(os.path.dirname(qr_path), exist_ok=True)
+            img.save(qr_path)
+            
+            # Show Dialog
+            content = MDBoxLayout(orientation='vertical', size_hint_y=None, height="300dp")
+            content.add_widget(AsyncImage(source=qr_path, size_hint=(1, 1)))
+            content.add_widget(MDLabel(text="Scan with Telegram Mobile App", halign="center"))
+            
+            self.qr_dialog = MDDialog(
+                title="Scan QR Code",
+                type="custom",
+                content_cls=content,
+                buttons=[MDFlatButton(text="CANCEL", on_release=lambda x: self.close_qr_dialog())]
+            )
+            self.qr_dialog.open()
+            
+            # Wait for login
+            try:
+                # Wait (blocking in this thread, but async)
+                user = await qr_login.wait()
+                
+                # Success
+                self.close_qr_dialog()
+                toast(f"Welcome {user.first_name}!")
+                
+                # Save session handled by client? 
+                # AccountManager needs to know we are connected.
+                # Actually start_qr_auth created the client. 
+                # We need to save the session string if StringSession?
+                # AccountManager uses FileSession likely.
+                # check connect_account in AccountManager.
+                
+                # We need to mark account as authorized in manager.
+                # self.account_manager.mark_authorized(account_id)? 
+                # Let's look at account_manager again. It usually checks is_user_authorized on connect.
+                
+                # Re-trigger generic connect to save/update state
+                await self.account_manager.connect_account(account_id)
+                self.load_accounts_list()
+                
+            except Exception as e:
+                logger.error(f"QR Wait Error: {e}")
+                self.close_qr_dialog()
+                toast("QR Login Timed out or Failed")
+        
+        except Exception as e:
+            logger.error(f"QR Gen Error: {e}")
+            toast(f"Error: {e}")
+
+    def close_qr_dialog(self):
+        if hasattr(self, 'qr_dialog') and self.qr_dialog:
+            self.qr_dialog.dismiss()
+            self.qr_dialog = None
+
     def go_back(self):
         """Go back to previous screen"""
         self.manager.current = 'action'

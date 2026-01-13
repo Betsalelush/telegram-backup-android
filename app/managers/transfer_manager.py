@@ -13,6 +13,8 @@ from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument
 
 from ..config import Config
 from ..utils.logger import logger, add_breadcrumb
+from ..utils.helpers import download_media, upload_media
+import os
 
 
 class TransferSession:
@@ -142,7 +144,7 @@ class TransferManager:
                     status_callback(session_id, f"Processing batch {message.id}...")
                     
                     # Process batch
-                    await self.process_batch(session, clients, batch, source_entity, target_entity, file_types)
+                    await self.process_batch(session, clients, batch, source_entity, target_entity, file_types, mode=session.config.get('mode', 'copy'))
                     batch = [] # Clear batch
                     
                     # Update status text
@@ -151,7 +153,7 @@ class TransferManager:
 
             # Process remaining
             if batch and session.is_running:
-                await self.process_batch(session, clients, batch, source_entity, target_entity, file_types)
+                await self.process_batch(session, clients, batch, source_entity, target_entity, file_types, mode=session.config.get('mode', 'copy'))
             
             if session.is_running:
                 session.status = "Completed"
@@ -164,7 +166,7 @@ class TransferManager:
             status_callback(session_id, f"Error: {str(e)}")
             session.is_running = False
 
-    async def process_batch(self, session, clients, messages, source, target, file_types):
+    async def process_batch(self, session, clients, messages, source, target, file_types, mode='copy'):
         """Process a batch of messages for a session"""
         
         for message in messages:
@@ -187,7 +189,7 @@ class TransferManager:
             
             # Transfer
             try:
-                success = await self.transfer_single_message(client, message, source, target, file_types)
+                success = await self.transfer_single_message(client, message, source, target, file_types, mode)
                 if success:
                     session.update_stats(sent=1, success=True)
                 else:
@@ -215,41 +217,62 @@ class TransferManager:
             
         return False
 
-    async def transfer_single_message(self, client, message, source, target, file_types: List[str] = None):
-        """Actual transfer logic - Copy without forward tag"""
+    async def transfer_single_message(self, client, message, source, target, file_types: List[str] = None, mode: str = 'copy'):
+        """
+        Actual transfer logic
+        Modes: 'forward', 'copy', 'download_upload'
+        """
         try:
-            # Media
-            if message.media:
-                file_to_send = message.media
-                
-                # Check specific media types if needed (though is_message_allowed already filtered)
-                # We do this to ensure we send the right object
-                if isinstance(message.media, MessageMediaPhoto):
-                    file_to_send = message.photo
-                elif isinstance(message.media, MessageMediaDocument):
-                    file_to_send = message.document
-                
-                await client.send_file(
-                    target,
-                    file=file_to_send,
-                    caption=message.text or ''
-                )
-                logger.info("Copied media message")
+            # --- 1. Forward Mode ---
+            if mode == 'forward':
+                await client.forward_messages(target, message, source)
                 return True
+
+            # --- 2. Copy Mode (No Credit) ---
+            elif mode == 'copy':
+                # Media
+                if message.media:
+                    file_to_send = message.media
+                    if isinstance(message.media, MessageMediaPhoto):
+                        file_to_send = message.photo
+                    elif isinstance(message.media, MessageMediaDocument):
+                        file_to_send = message.document
+                    
+                    await client.send_file(
+                        target,
+                        file=file_to_send,
+                        caption=message.text or ''
+                    )
+                    return True
+                # Text
+                elif message.text:
+                    await client.send_message(target, message.text)
+                    return True
+
+            # --- 3. Download & Upload Mode (Cleanest) ---
+            elif mode == 'download_upload':
+                if message.media:
+                    # Download
+                    logger.info("Downloading media for clean upload...")
+                    file_bytes = await download_media(client, message)
+                    
+                    if file_bytes:
+                        # Upload
+                        await upload_media(client, target, file_bytes, caption=message.text)
+                        return True
+                    else:
+                        logger.warning("Failed to download media")
+                        return False
                 
-            # Text
-            elif message.text:
-                await client.send_message(target, message.text)
-                logger.info("Copied text message")
-                return True
-                
+                elif message.text:
+                    # Text is same as copy
+                    await client.send_message(target, message.text)
+                    return True
+            
             return False
             
         except Exception as e:
-            logger.error(f"Copy error: {e}")
-            # Fallback to forward if copy fails? No, better to fail and retry or log.
-            # But maybe for some specific types forward is safer? 
-            # Sticking to requested "no credit" requirement.
+            logger.error(f"Transfer error ({mode}): {e}")
             raise e
 
     async def check_global_rate_limit(self):
