@@ -181,6 +181,10 @@ class AccountsScreen(Screen):
                 logger.info(f"Account added successfully: {acc_id}")
                 self.dialog.dismiss()
                 self.load_accounts_list()
+                
+                # Automatically start login flow
+                import asyncio
+                asyncio.create_task(self._handle_manual_login(acc_id))
             else:
                 logger.error("Failed to add account (Manager returned None)")
                 
@@ -264,54 +268,55 @@ class AccountsScreen(Screen):
             self.accounts_list.add_widget(item)
 
     def show_account_options(self, account_id):
-        """Show options for account"""
-        from kivymd.uix.bottomsheet import MDCustomBottomSheet
-        from kivymd.uix.list import OneLineIconListItem
-        
+        """Show options for account using a simple dialog instead of bottom sheet for reliability"""
         # Determine status
         account = self.account_manager.get_account(account_id)
         if not account: return
         
         is_connected = account.get('authorized', False)
         
-        # Build menu content
-        content = MDBoxLayout(orientation='vertical', adaptive_height=True)
-        
+        buttons = []
         if not is_connected:
-            # Connect SMS
-            item_sms = OneLineIconListItem(text="Connect via SMS")
-            item_sms.add_widget(IconLeftWidget(icon="message"))
-            item_sms.bind(on_release=lambda x: self.deferred_action(account_id, 'connect'))
-            content.add_widget(item_sms)
-            
-            # Connect QR
-            item_qr = OneLineIconListItem(text="Connect via QR Code")
-            item_qr.add_widget(IconLeftWidget(icon="qrcode-scan"))
-            item_qr.bind(on_release=lambda x: self.start_qr_flow(account_id))
-            content.add_widget(item_qr)
+            buttons.append(MDRaisedButton(
+                text="CONNECT (SMS)", 
+                on_release=lambda x: self.deferred_dialog_action(account_id, 'manual_connect')
+            ))
+            buttons.append(MDRaisedButton(
+                text="CONNECT (QR)", 
+                on_release=lambda x: self.deferred_dialog_action(account_id, 'qr_connect')
+            ))
         else:
-            # Disconnect
-            item_disc = OneLineIconListItem(text="Disconnect")
-            item_disc.add_widget(IconLeftWidget(icon="logout"))
-            item_disc.bind(on_release=lambda x: self.deferred_action(account_id, 'disconnect'))
-            content.add_widget(item_disc)
+            buttons.append(MDRaisedButton(
+                text="DISCONNECT", 
+                on_release=lambda x: self.deferred_dialog_action(account_id, 'disconnect')
+            ))
             
-        self.bottom_sheet = MDCustomBottomSheet(screen=content)
-        self.bottom_sheet.open()
+        buttons.append(MDFlatButton(
+            text="DELETE", 
+            on_release=lambda x: self.deferred_dialog_action(account_id, 'delete')
+        ))
+        
+        self.options_dialog = MDDialog(
+            title=f"Account: {account['name']}",
+            type="simple",
+            buttons=buttons + [MDFlatButton(text="CANCEL", on_release=lambda x: self.options_dialog.dismiss())]
+        )
+        self.options_dialog.open()
 
-    def deferred_action(self, account_id, action):
-        """Close sheet and run action"""
-        if hasattr(self, 'bottom_sheet'):
-            self.bottom_sheet.dismiss()
-        self.on_account_action(account_id, action)
-
-    def start_qr_flow(self, account_id):
-        """Start QR Login Flow"""
-        if hasattr(self, 'bottom_sheet'):
-            self.bottom_sheet.dismiss()
+    def deferred_dialog_action(self, account_id, action):
+        """Close options and run action"""
+        if hasattr(self, 'options_dialog'):
+            self.options_dialog.dismiss()
             
         import asyncio
-        asyncio.create_task(self._process_qr(account_id))
+        if action == 'manual_connect':
+            asyncio.create_task(self._handle_manual_login(account_id))
+        elif action == 'qr_connect':
+            asyncio.create_task(self._process_qr(account_id))
+        elif action == 'disconnect':
+            self.on_account_action(account_id, 'disconnect')
+        elif action == 'delete':
+            self.on_account_action(account_id, 'delete')
 
     async def _process_qr(self, account_id):
         """Async QR processor"""
