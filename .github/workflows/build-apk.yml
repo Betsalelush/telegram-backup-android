@@ -13,6 +13,12 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
+      - name: 🧹 Free Disk Space
+        uses: jlumbroso/free-disk-space-action@v1.3.1
+        with:
+          tool-cache: false
+          android: false # Don't remove Android SDKs
+
       - name: 🔨 Build with Buildozer (Docker)
         run: |
           # Fix permissions for the .buildozer directory if it exists
@@ -20,15 +26,24 @@ jobs:
           sudo chmod 777 .buildozer
           
           # Run buildozer in the official Kivy container
+          # Using version 3.0 compatible options
           docker run --rm \
             -v ${{ github.workspace }}:/home/user/hostcwd \
             -v ${{ github.workspace }}/.buildozer:/home/user/.buildozer \
             kivy/buildozer \
             android debug
             
-      - name: 📤 Upload APK
+      - name: 📤 Upload log on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: telegram-backup-apk
+          name: build-log
+          path: .buildozer/android/platform/build-*.log
+
+      - name: 📤 Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-backup-v3.0-apk
           path: bin/*.apk
           retention-days: 30
