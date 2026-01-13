@@ -67,11 +67,25 @@ def main():
                 time.sleep(2)
             except: pass
             
-        # Emergency local log
+        # Emergency local log - Try to write to Downloads for visibility
         try:
-            with open("crash_log.txt", "w") as f:
-                f.write(traceback.format_exc())
-            print("Crash log written to crash_log.txt")
+            import os
+            # Try multiple paths
+            paths = [
+                "/storage/emulated/0/Download/telegram_crash.txt",
+                "/sdcard/Download/telegram_crash.txt",
+                "telegram_crash.txt" # Fallback to app dir
+            ]
+            
+            error_msg = f"Time: {time.ctime()}\nError: {e}\n\n{traceback.format_exc()}"
+            
+            for path in paths:
+                try:
+                    with open(path, "w", encoding='utf-8') as f:
+                        f.write(error_msg)
+                    logger.info(f"Crash log written to {path}")
+                    break
+                except: continue
         except: pass
         
         raise
