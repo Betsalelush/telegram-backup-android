@@ -99,7 +99,7 @@ class TransferScreen(Screen):
         
         # URL Shortener Button
         from kivymd.uix.button import MDIconButton
-        shorten_btn = MDIconButton(icon="link-variant-plus", tooltip_text="Shorten Links")
+        shorten_btn = MDIconButton(icon="link-variant-plus")
         shorten_btn.bind(on_release=self.shorten_links)
         grid.add_widget(shorten_btn)
         top_content.add_widget(grid)
