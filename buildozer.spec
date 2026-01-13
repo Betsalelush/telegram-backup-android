@@ -7,7 +7,7 @@ source.include_exts = py,png,jpg,kv,atlas
 source.exclude_dirs = maxuser, tests, bin, .buildozer, .git, __pycache__, .github, node_modules, .idea, .vscode
 version = 3.0
 
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,asyncio
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,asyncio,pyaes
 
 orientation = portrait
 fullscreen = 0
