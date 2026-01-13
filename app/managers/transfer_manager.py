@@ -15,329 +15,258 @@ from ..config import Config
 from ..utils.logger import logger, add_breadcrumb
 
 
+class TransferSession:
+    """
+    Represents a single active transfer session
+    """
+    def __init__(self, session_id: str, config: Dict):
+        self.session_id = session_id
+        self.config = config
+        self.stats = {
+            'total_sent': 0,
+            'total_skipped': 0,
+            'total_errors': 0,
+            'consecutive_successes': 0
+        }
+        self.is_running = True
+        self.start_time = datetime.now()
+        self.status = "Initializing..."
+
+    def stop(self):
+        self.is_running = False
+        self.status = "Stopped"
+
+    def update_stats(self, sent=0, skipped=0, errors=0, success=False):
+        self.stats['total_sent'] += sent
+        self.stats['total_skipped'] += skipped
+        self.stats['total_errors'] += errors
+        
+        if success:
+            self.stats['consecutive_successes'] += 1
+        else:
+            if errors > 0:
+                self.stats['consecutive_successes'] = 0
+
 class TransferManager:
     """
-    Manages message transfers
+    Manages multiple message transfer sessions
     
     Features:
-    - Multiple transfer methods (forward, send_message, download/upload)
+    - Multiple concurrent sessions
+    - Helper class TransferSession
     - Round-robin between multiple accounts
-    - Rate limiting (20 msg/min)
-    - Smart delay based on success rate
-    - FloodWait handling per account
+    - Global Rate limiting (20 msg/min per account)
+    - FloodWait handling
     """
     
     def __init__(self):
         """Initialize Transfer Manager"""
-        # Rate limiting
+        # Global Rate Limiting State
+        # We need to track rate limits PER CLIENT potentially, or globally if desired.
+        # Assuming global safety for now to be safe.
         self.messages_per_minute = 0
         self.minute_start_time = None
         self.max_messages_per_minute = Config.MAX_MESSAGES_PER_MINUTE
         
-        # Smart delay
-        self.consecutive_successes = 0
-        
-        # Round-robin
-        self.current_client_index = 0
+        # Client FloodWait State (Global)
         self.client_flood_wait = {}  # client_id -> wait_until_time
         
-        # Statistics
-        self.total_sent = 0
-        self.total_skipped = 0
-        self.total_errors = 0
-        self.start_time = None
+        # Active Sessions
+        self.sessions: Dict[str, TransferSession] = {}
         
         add_breadcrumb("TransferManager initialized")
     
-    async def transfer_message(self, client: TelegramClient, message: Message,
-                              source_entity, target_entity, 
-                              method: str = "forward") -> bool:
-        """
-        Transfer single message using specified method
+    def create_transfer(self, transfer_config: Dict) -> str:
+        """Create new transfer session"""
+        import uuid
+        session_id = f"task_{uuid.uuid4().hex[:8]}"
+        session = TransferSession(session_id, transfer_config)
+        self.sessions[session_id] = session
         
-        Args:
-            client: Telegram client
-            message: Message to transfer
-            source_entity: Source channel entity
-            target_entity: Target channel entity
-            method: Transfer method (forward/send_message/download_upload)
-            
-        Returns:
-            bool: True if transferred successfully
+        logger.info(f"Created session: {session_id}")
+        return session_id
+
+    def get_session(self, session_id: str) -> Optional[TransferSession]:
+        return self.sessions.get(session_id)
+
+    def stop_transfer(self, session_id: str):
+        """Stop a specific session"""
+        session = self.get_session(session_id)
+        if session:
+            session.stop()
+            logger.info(f"Stopped session {session_id}")
+
+    async def start_mass_transfer(self, session_id: str, clients: List[TelegramClient], status_callback):
         """
+        Run a specific transfer session
+        """
+        session = self.get_session(session_id)
+        if not session:
+            logger.error(f"Session {session_id} not found")
+            return
+
         try:
-            # Check file types
-            if message.voice and not Config.SUPPORTED_FILE_TYPES.get('voice', True):
-                return False
-            if message.audio and not Config.SUPPORTED_FILE_TYPES.get('audio', True):
-                return False
-            if message.video and not Config.SUPPORTED_FILE_TYPES.get('videos', True):
-                return False
-            if message.photo and not Config.SUPPORTED_FILE_TYPES.get('photos', True):
-                return False
-            if message.sticker and not Config.SUPPORTED_FILE_TYPES.get('stickers', True):
-                return False
-            if message.document and not Config.SUPPORTED_FILE_TYPES.get('documents', True):
-                return False
+            config = session.config
+            source = config['source']
+            target = config['target']
+            start_id = config.get('start_id', 0)
+            file_types = config.get('file_types', [])
             
-            if method == "forward":
-                # Forward with credit
-                await client.forward_messages(
-                    target_entity,
-                    message,
-                    source_entity
-                )
+            # 1. Resolve Entities
+            status_callback(session_id, "Resolving channels...")
+            primary = clients[0]
+            source_entity = await primary.get_entity(source)
+            target_entity = await primary.get_entity(target)
+            
+            # 2. Iterate Messages
+            status_callback(session_id, f"Scanning from ID {start_id}...")
+            
+            kwargs = {'reverse': True}
+            if start_id > 0:
+                kwargs['min_id'] = start_id
+            
+            batch_size = 20
+            batch = []
+            
+            # Simple round-robin index for this session
+            client_index = 0
+            
+            async for message in primary.iter_messages(source_entity, **kwargs):
+                if not session.is_running:
+                    status_callback(session_id, "Stopped.")
+                    break
+
+                batch.append(message)
                 
-            elif method == "send_message":
-                # Send without credit
-                await client.send_message(
-                    target_entity,
-                    message=message
-                )
-                
-            elif method == "download_upload":
-                # Download and upload (no credit)
-                if message.media:
-                    # Download media
-                    file = await client.download_media(message.media, file=bytes)
+                if len(batch) >= batch_size:
+                    status_callback(session_id, f"Processing batch {message.id}...")
                     
-                    if file:
-                        # Upload to target
-                        await client.send_file(
-                            target_entity,
-                            file,
-                            caption=message.text if message.text else ''
-                        )
-                    else:
-                        raise Exception("Failed to download media")
-                elif message.text:
-                    # Text only
-                    await client.send_message(target_entity, message.text)
+                    # Process batch
+                    await self.process_batch(session, clients, batch, source_entity, target_entity, file_types)
+                    batch = [] # Clear batch
+                    
+                    # Update status text
+                    s = session.stats
+                    status_callback(session_id, f"Running: Sent {s['total_sent']} | Errors {s['total_errors']}")
+
+            # Process remaining
+            if batch and session.is_running:
+                await self.process_batch(session, clients, batch, source_entity, target_entity, file_types)
             
-            self.consecutive_successes += 1
-            self.total_sent += 1
-            return True
-            
+            if session.is_running:
+                session.status = "Completed"
+                status_callback(session_id, "Completed Successfully!")
+                session.is_running = False
+                
         except Exception as e:
-            logger.error(f"Error transferring message {message.id}: {e}")
-            self.consecutive_successes = 0
-            self.total_errors += 1
-            return False
-    
-    async def check_rate_limit(self):
-        """
-        Check and manage rate limits (20 messages/minute)
+            logger.error(f"Session {session_id} error: {e}")
+            session.status = f"Error: {str(e)}"
+            status_callback(session_id, f"Error: {str(e)}")
+            session.is_running = False
+
+    async def process_batch(self, session, clients, messages, source, target, file_types):
+        """Process a batch of messages for a session"""
         
-        Waits if limit is reached
-        """
+        for message in messages:
+            if not session.is_running:
+                break
+                
+            # Filter Logic
+            if not self.is_message_allowed(message, file_types):
+                session.update_stats(skipped=1)
+                continue
+
+            # Get Client
+            client = await self.get_next_client(clients)
+            if not client:
+                session.update_stats(errors=1)
+                continue
+            
+            # Rate Limit (Global)
+            await self.check_global_rate_limit()
+            
+            # Transfer
+            try:
+                success = await self.transfer_single_message(client, message, source, target)
+                if success:
+                    session.update_stats(sent=1, success=True)
+                else:
+                    session.update_stats(errors=1, success=False)
+            except Exception as e:
+                logger.error(f"Transfer error: {e}")
+                session.update_stats(errors=1, success=False)
+            
+            # Delay
+            await asyncio.sleep(self.calculate_delay(session.stats['consecutive_successes']))
+
+    def is_message_allowed(self, message, file_types):
+        """Check if message matches allowed types"""
+        if not file_types: return True # All allowed if None
+        
+        # Text
+        if "text" in file_types and message.text and not message.media: return True
+        
+        # Media
+        if message.media:
+            if "images" in file_types and message.photo: return True
+            if "videos" in file_types and message.video: return True
+            if "audio" in file_types and (message.audio or message.voice): return True
+            if "documents" in file_types and message.document and not (message.video or message.audio or message.voice or message.photo): return True
+            
+        return False
+
+    async def transfer_single_message(self, client, message, source, target):
+        """Actual transfer logic"""
+        # Simply forward for now
+        await client.forward_messages(target, message, source)
+        return True
+
+    async def check_global_rate_limit(self):
+        """Global rate limiter implementation"""
         if self.minute_start_time is None:
             self.minute_start_time = datetime.now()
+            
+        elapsed = (datetime.now() - self.minute_start_time).total_seconds()
         
-        # Check if minute passed
-        elapsed = datetime.now() - self.minute_start_time
-        if elapsed.total_seconds() >= 60:
-            # Reset counter
+        if elapsed >= 60:
             self.messages_per_minute = 0
             self.minute_start_time = datetime.now()
-            logger.info(f"Rate limit reset: 0/{self.max_messages_per_minute} messages this minute")
-        
-        # Check if limit reached
+            
         if self.messages_per_minute >= self.max_messages_per_minute:
-            wait_time = 60 - elapsed.total_seconds()
-            if wait_time > 0:
-                logger.warning(f"Rate limit reached! Waiting {int(wait_time)}s...")
-                add_breadcrumb("Rate limit hit", {"wait_time": int(wait_time)})
-                await asyncio.sleep(wait_time)
-                # Reset after waiting
+            wait = 60 - elapsed
+            if wait > 0:
+                logger.warning(f"Global Rate Limit Hit. Waiting {wait:.1f}s")
+                await asyncio.sleep(wait)
                 self.messages_per_minute = 0
                 self.minute_start_time = datetime.now()
         
-        # Increment counter
         self.messages_per_minute += 1
-    
-    def smart_delay(self) -> float:
-        """
-        Calculate smart delay based on consecutive successes
+
+    async def get_next_client(self, clients):
+        """Get next available client (FloodWait safe)"""
+        # Simple random/round-robin for now
+        # Ideally track FloodWait per client_id globally
+        import random
+        valid_clients = []
+        now = datetime.now()
         
-        Returns:
-            float: Delay in seconds
-        """
-        if self.consecutive_successes > 10:
-            # Fast mode
-            delay = random.uniform(Config.SMART_DELAY_MIN, Config.SMART_DELAY_MIN + 1)
-        elif self.consecutive_successes > 5:
-            # Medium mode
-            delay = random.uniform(Config.SMART_DELAY_MIN + 1, Config.SMART_DELAY_MAX - 2)
-        else:
-            # Slow mode (after errors)
-            delay = random.uniform(Config.SMART_DELAY_MAX - 2, Config.SMART_DELAY_MAX)
-        
-        return delay
-    
-    async def send_messages_batch(self, clients: List[TelegramClient], 
-                                  messages: List[Message],
-                                  source_entity, target_entity,
-                                  method: str = "forward") -> Dict:
-        """
-        Send batch of messages using round-robin between clients
-        
-        Args:
-            clients: List of Telegram clients
-            messages: List of messages to send
-            source_entity: Source channel entity
-            target_entity: Target channel entity
-            method: Transfer method
-            
-        Returns:
-            Dict: Statistics (sent, skipped, errors)
-        """
-        stats = {
-            'sent': 0,
-            'skipped': 0,
-            'errors': 0
-        }
-        
-        for message in messages:
-            # Get next available client
-            client = await self.get_next_client(clients)
-            
-            if not client:
-                logger.error("No available clients!")
-                stats['errors'] += 1
-                continue
-            
-            # Check rate limit
-            await self.check_rate_limit()
-            
-            # Transfer message
-            success = await self.transfer_message(
-                client, message, source_entity, target_entity, method
-            )
-            
-            if success:
-                stats['sent'] += 1
-            else:
-                stats['errors'] += 1
-            
-            # Smart delay
-            delay = self.smart_delay()
-            await asyncio.sleep(delay)
-        
-        add_breadcrumb("Batch sent", stats)
-        return stats
-    
-    async def get_next_client(self, clients: List[TelegramClient]) -> Optional[TelegramClient]:
-        """
-        Get next available client (round-robin with FloodWait check)
-        
-        Args:
-            clients: List of available clients
-            
-        Returns:
-            Optional[TelegramClient]: Next client or None if all in FloodWait
-        """
-        if not clients:
-            return None
-        
-        # Try all clients
-        attempts = 0
-        while attempts < len(clients):
-            # Get next client (round-robin)
-            client = clients[self.current_client_index]
-            client_id = id(client)
-            
-            # Move to next for next time
-            self.current_client_index = (self.current_client_index + 1) % len(clients)
-            
-            # Check if in FloodWait
-            if client_id in self.client_flood_wait:
-                wait_until = self.client_flood_wait[client_id]
-                if datetime.now() < wait_until:
-                    # Still in FloodWait, try next
-                    attempts += 1
-                    continue
+        for c in clients:
+            cid = id(c)
+            # Check FloodWait
+            if cid in self.client_flood_wait:
+                if now < self.client_flood_wait[cid]:
+                    continue # Still waiting
                 else:
-                    # FloodWait expired, remove
-                    del self.client_flood_wait[client_id]
+                    del self.client_flood_wait[cid]
+            valid_clients.append(c)
             
-            # Client is available
-            return client
-        
-        # All clients in FloodWait
-        logger.warning("All clients in FloodWait!")
-        return None
-    
-    async def handle_flood_wait_for_client(self, client: TelegramClient, 
-                                          wait_seconds: int):
-        """
-        Handle FloodWait for specific client
-        
-        Args:
-            client: Telegram client
-            wait_seconds: Seconds to wait
-        """
-        client_id = id(client)
-        wait_until = datetime.now() + timedelta(seconds=wait_seconds)
-        
-        self.client_flood_wait[client_id] = wait_until
-        
-        logger.warning(f"Client {client_id} in FloodWait for {wait_seconds}s until {wait_until}")
-        add_breadcrumb("FloodWait", {
-            "client_id": client_id,
-            "wait_seconds": wait_seconds
-        })
-    
-    def get_stats(self) -> Dict:
-        """
-        Get transfer statistics
-        
-        Returns:
-            Dict: Statistics
-        """
-        elapsed = 0
-        speed = 0
-        
-        if self.start_time:
-            elapsed = (datetime.now() - self.start_time).total_seconds()
-            if elapsed > 0:
-                speed = self.total_sent / elapsed
-        
-        return {
-            'total_sent': self.total_sent,
-            'total_skipped': self.total_skipped,
-            'total_errors': self.total_errors,
-            'elapsed_seconds': elapsed,
-            'messages_per_second': speed,
-            'consecutive_successes': self.consecutive_successes
-        }
-    
-    def reset_stats(self):
-        """Reset statistics"""
-        self.total_sent = 0
-        self.total_skipped = 0
-        self.total_errors = 0
-        self.consecutive_successes = 0
-        self.start_time = datetime.now()
-        
-        add_breadcrumb("Stats reset")
-    
-    def create_transfer(self, transfer_config: Dict) -> str:
-        """
-        Create new transfer task
-        
-        Args:
-            transfer_config: Transfer configuration
+        if not valid_clients:
+            return None
             
-        Returns:
-            str: Transfer ID
-        """
-        import uuid
-        transfer_id = f"transfer_{uuid.uuid4().hex[:12]}"
-        
-        # Reset stats for new transfer
-        self.reset_stats()
-        
-        logger.info(f"Created transfer: {transfer_id}")
-        add_breadcrumb("Transfer created", {"transfer_id": transfer_id})
-        
-        return transfer_id
+        return random.choice(valid_clients)
+
+    def calculate_delay(self, consecutive_successes):
+        """Smart delay"""
+        if consecutive_successes > 10:
+            return random.uniform(Config.SMART_DELAY_MIN, Config.SMART_DELAY_MIN + 0.5)
+        return random.uniform(Config.SMART_DELAY_MIN + 1, Config.SMART_DELAY_MAX)

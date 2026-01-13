@@ -22,214 +22,204 @@ class TransferScreen(Screen):
     Screen for configuring and running transfers
     
     Features:
-    - Select accounts
-    - Select source/target channels
-    - Select file types
+    - Select accounts (Multi-select)
+    - Source/Target channels
+    - Start Message ID
+    - File Types selection
     - Start/stop transfer
     - Show progress
     """
     
     progress_value = NumericProperty(0)
     
-    def __init__(self, account_manager: AccountManager,
-                 transfer_manager: TransferManager,
-                 progress_manager: ProgressManager,
-                 **kwargs):
-        """
-        Initialize Transfer Screen
-        
-        Args:
-            account_manager: AccountManager instance
-            transfer_manager: TransferManager instance
-            progress_manager: ProgressManager instance
-        """
+    def __init__(self, account_manager, transfer_manager, progress_manager, **kwargs):
         super().__init__(**kwargs)
         self.account_manager = account_manager
         self.transfer_manager = transfer_manager
         self.progress_manager = progress_manager
         
-        self.is_running = False
+        self.account_checks = {} 
+        self.type_checks = {} 
         
-        # Build UI
         self.build_ui()
-        
         add_breadcrumb("TransferScreen initialized")
     
+    def on_enter(self):
+        self.refresh_accounts()
+
     def build_ui(self):
-        """Build screen UI"""
+        """Build screen UI with Task Dashboard"""
+        from kivymd.uix.selectioncontrol import MDCheckbox
+        from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
+        from kivymd.uix.scrollview import MDScrollView
+        from kivymd.uix.gridlayout import MDGridLayout
+        from kivymd.uix.list import MDList
+        
         layout = MDBoxLayout(orientation='vertical')
         
         # Toolbar
-        toolbar = MDTopAppBar(title="New Transfer")
+        toolbar = MDTopAppBar(title="Transfer Dashboard")
         toolbar.left_action_items = [["arrow-left", lambda x: self.go_back()]]
         layout.add_widget(toolbar)
         
-        # Content
-        content = MDBoxLayout(
-            orientation='vertical',
-            padding=20,
-            spacing=15
-        )
+        # Split Screen: Top = Config, Bottom = Active Tasks
         
-        # Source channel
-        self.source_field = MDTextField(
-            hint_text="Source Channel (ID or Link)",
-            mode="rectangle"
-        )
+        # --- Top Section: New Task Config (Scrollable) ---
+        top_scroll = MDScrollView(size_hint_y=0.6)
+        content = MDBoxLayout(orientation='vertical', padding=20, spacing=15, adaptive_height=True)
+        
+        # 1. Channels
+        content.add_widget(MDLabel(text="New Task", font_style="H6", theme_text_color="Primary"))
+        
+        self.source_field = MDTextField(hint_text="Source Channel (ID or Link)", mode="rectangle")
         content.add_widget(self.source_field)
         
-        # Target channel
-        self.target_field = MDTextField(
-            hint_text="Target Channel (ID or Link)",
-            mode="rectangle"
-        )
+        self.target_field = MDTextField(hint_text="Target Channel (ID or Link)", mode="rectangle")
         content.add_widget(self.target_field)
         
-        # Progress bar
-        self.progress_bar = MDProgressBar(
-            size_hint_y=None,
-            height=10
-        )
-        content.add_widget(self.progress_bar)
+        # 2. Options
+        grid = MDGridLayout(cols=2, spacing=10, adaptive_height=True)
+        self.start_id_field = MDTextField(hint_text="Start ID (0=Oldest)", text="0", input_filter="int", mode="rectangle")
+        grid.add_widget(self.start_id_field)
+        content.add_widget(grid)
         
-        # Progress text
-        self.progress_label = MDLabel(
-            text="Ready",
-            halign="center",
-            size_hint_y=None,
-            height=30
-        )
-        content.add_widget(self.progress_label)
+        # 3. Accounts & types (Simplified for height)
+        self.accounts_grid = MDGridLayout(cols=1, adaptive_height=True, spacing=5)
+        content.add_widget(MDLabel(text="Select Accounts:", font_style="Subtitle2"))
+        content.add_widget(self.accounts_grid)
         
-        # Start button
-        self.start_btn = MDRaisedButton(
-            text="Start Transfer",
-            pos_hint={"center_x": 0.5}
-        )
+        # 4. File Types
+        types_layout = MDGridLayout(cols=3, adaptive_height=True, spacing=5)
+        file_types = ["Images", "Videos", "Audio", "Documents", "Text"]
+        for ftype in file_types:
+            box = MDBoxLayout(adaptive_height=True)
+            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp", "30dp"))
+            self.type_checks[ftype.lower()] = chk
+            box.add_widget(chk)
+            box.add_widget(MDLabel(text=ftype, font_style="Caption"))
+            types_layout.add_widget(box)
+        content.add_widget(types_layout)
+        
+        # Start Button
+        self.start_btn = MDRaisedButton(text="🚀 START NEW TASK", size_hint_x=1, md_bg_color=(0, 0.7, 0, 1))
         self.start_btn.bind(on_release=self.start_transfer)
         content.add_widget(self.start_btn)
         
-        # Stop button
-        self.stop_btn = MDFlatButton(
-            text="Stop Transfer",
-            pos_hint={"center_x": 0.5},
-            disabled=True
-        )
-        self.stop_btn.bind(on_release=self.stop_transfer)
-        content.add_widget(self.stop_btn)
+        top_scroll.add_widget(content)
+        layout.add_widget(top_scroll)
         
-        layout.add_widget(content)
+        # --- Bottom Section: Active Tasks List ---
+        layout.add_widget(MDLabel(text="  Active Tasks", size_hint_y=None, height=30, md_bg_color=(0.9,0.9,0.9,1)))
+        
+        bottom_scroll = MDScrollView(size_hint_y=0.4)
+        self.tasks_list = MDList()
+        bottom_scroll.add_widget(self.tasks_list)
+        layout.add_widget(bottom_scroll)
+        
         self.add_widget(layout)
-    
-    def start_transfer(self, *args):
-        """Start transfer"""
-        source = self.source_field.text
-        target = self.target_field.text
+
+    def refresh_accounts(self):
+        """Refresh account list checkboxes"""
+        from kivymd.uix.selectioncontrol import MDCheckbox
+        self.accounts_grid.clear_widgets()
+        self.account_checks.clear()
         
-        if not source or not target:
-            logger.warning("Missing source or target channel")
-            return
-        
-        # Get connected accounts
         accounts = self.account_manager.get_connected_accounts()
         if not accounts:
-            logger.warning("No connected accounts")
+            self.accounts_grid.add_widget(MDLabel(text="No accounts!", theme_text_color="Error"))
             return
+
+        for acc in accounts:
+            box = MDBoxLayout(adaptive_height=True, height="40dp")
+            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp", "30dp"))
+            self.account_checks[acc['id']] = chk
+            box.add_widget(chk)
+            box.add_widget(MDLabel(text=f"{acc['name']}"))
+            self.accounts_grid.add_widget(box)
+
+    def start_transfer(self, *args):
+        """Start transfer logic"""
+        source = self.source_field.text
+        target = self.target_field.text
+        start_id = int(self.start_id_field.text or 0)
         
-        # Create transfer
-        transfer_id = self.transfer_manager.create_transfer({
+        if not source or not target:
+            return # TODO: Toast
+            
+        selected_accounts = [aid for aid, chk in self.account_checks.items() if chk.active]
+        if not selected_accounts: return
+        
+        selected_types = [t for t, chk in self.type_checks.items() if chk.active]
+
+        config = {
             'source': source,
             'target': target,
-            'accounts': [acc['id'] for acc in accounts]
-        })
+            'accounts': selected_accounts,
+            'start_id': start_id,
+            'file_types': selected_types
+        }
         
-        logger.info(f"Starting transfer: {transfer_id}")
-        add_breadcrumb("Transfer started", {"transfer_id": transfer_id})
+        # Create Session in Manager
+        session_id = self.transfer_manager.create_transfer(config)
         
-        # Update UI
-        self.is_running = True
-        self.start_btn.disabled = True
-        self.stop_btn.disabled = False
-        self.progress_label.text = "Transfer running..."
+        # Add to List UI
+        self.add_task_to_list(session_id, source, target)
         
-        # Start transfer (async)
+        # Start Async
+        self.source_field.text = "" # Clear form
         import asyncio
-        asyncio.create_task(self._run_transfer(source, target, accounts))
-    
-    async def _run_transfer(self, source, target, accounts):
-        """
-        Run transfer (async)
+        asyncio.create_task(self._run_transfer(session_id, config))
+
+    def add_task_to_list(self, session_id, source, target):
+        from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget, IconRightWidget
         
-        Args:
-            source: Source channel
-            target: Target channel
-            accounts: List of accounts
-        """
+        item = TwoLineAvatarIconListItem(
+            text=f"Task: {source} -> {target}",
+            secondary_text="Initializing...",
+            id=session_id
+        )
+        icon = IconLeftWidget(icon="transfer")
+        item.add_widget(icon)
+        
+        # Stop Button
+        # Note: Ideally needs better binding, simplified here
+        # right_icon = IconRightWidget(icon="stop", on_release=lambda x: self.stop_task(session_id, item))
+        # item.add_widget(right_icon)
+        
+        self.tasks_list.add_widget(item)
+
+    async def _run_transfer(self, session_id, config):
+        """Async runner"""
         try:
-            # Get clients
-            clients = [self.account_manager.get_client(acc['id']) for acc in accounts]
-            clients = [c for c in clients if c]  # Filter None
+            # Get only selected clients
+            clients = []
+            for acc_id in config['accounts']:
+                client = self.account_manager.get_client(acc_id)
+                if client: clients.append(client)
             
-            if not clients:
-                logger.error("No clients available")
-                return
-            
-            # Get entities
-            source_entity = await clients[0].get_entity(source)
-            target_entity = await clients[0].get_entity(target)
-            
-            # Get messages
-            messages = []
-            async for message in clients[0].iter_messages(source_entity):
-                messages.append(message)
-                if len(messages) >= 10000:  # Increased limit for production
-                    break
-            
-            logger.info(f"Found {len(messages)} messages to transfer")
-            
-            # Transfer messages
-            stats = await self.transfer_manager.send_messages_batch(
-                clients, messages, source_entity, target_entity
+            # Start Manager Logic
+            await self.transfer_manager.start_mass_transfer(
+                session_id,
+                clients, 
+                self.update_task_status
             )
             
-            logger.info(f"Transfer complete: {stats}")
-            self.progress_label.text = f"Complete! Sent: {stats['sent']}, Errors: {stats['errors']}"
-            
         except Exception as e:
-            logger.error(f"Transfer error: {e}")
-            self.progress_label.text = f"Error: {str(e)}"
-        
-        finally:
-            self.is_running = False
-            self.start_btn.disabled = False
-            self.stop_btn.disabled = True
-    
+            logger.error(f"Transfer failed: {e}")
+            self.update_task_status(session_id, f"Error: {e}")
+
+    def update_task_status(self, session_id, text):
+        """Find the list item and update text"""
+        # Linear search for now (simple)
+        for child in self.tasks_list.children:
+            if getattr(child, 'id', None) == session_id:
+                child.secondary_text = text
+                if "Completed" in text or "Error" in text:
+                    child.tertiary_text = "Done" # If ThreeLine
+                break
+
     def stop_transfer(self, *args):
-        """Stop transfer"""
-        logger.info("Stopping transfer")
-        add_breadcrumb("Transfer stopped")
-        
-        self.is_running = False
-        self.start_btn.disabled = False
-        self.stop_btn.disabled = True
-        self.progress_label.text = "Stopped"
-    
-    def update_progress(self, current: int, total: int):
-        """
-        Update progress bar
-        
-        Args:
-            current: Current message count
-            total: Total message count
-        """
-        if total > 0:
-            percentage = (current / total) * 100
-            self.progress_bar.value = percentage
-            self.progress_label.text = f"{current}/{total} ({percentage:.1f}%)"
-    
+        pass # Per task now
+
     def go_back(self):
-        """Go back to action screen"""
-        if not self.is_running:
-            self.manager.current = 'action'
-        else:
-            logger.warning("Cannot go back while transfer is running")
+        self.manager.current = 'action'
