@@ -13,12 +13,6 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🧹 Free Disk Space
-        uses: jlumbroso/free-disk-space-action@v1.3.1
-        with:
-          tool-cache: false
-          android: false # Don't remove Android SDKs
-
       - name: 🔨 Build with Buildozer (Docker)
         run: |
           # Fix permissions for the .buildozer directory if it exists
