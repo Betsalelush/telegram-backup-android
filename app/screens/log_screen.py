@@ -69,7 +69,9 @@ class LogScreen(Screen):
         # Log view
         self.log_view = TextInput(
             text=self.log_text,
-            text_color=(0, 1, 0, 1), # Matrix green logs
+            foreground_color=(0, 1, 0, 1), # Matrix green logs
+            background_color=(0, 0, 0, 1), # Black background for logs
+
             readonly=True,
             font_size="12sp",
             font_family="RobotoMono" # Monospace if available
