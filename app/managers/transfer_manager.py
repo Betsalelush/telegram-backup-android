@@ -14,6 +14,7 @@ from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument
 from ..config import Config
 from ..utils.logger import logger, add_breadcrumb
 from ..utils.helpers import download_media, upload_media
+from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
 import os
 
 
@@ -236,18 +237,33 @@ class TransferManager:
             elif mode == 'copy':
                 # Media
                 if message.media:
+                    # Handle WebPage (Link Previews) separately - treated as text
+                    if isinstance(message.media, MessageMediaWebPage):
+                        await client.send_message(target, message.text or '')
+                        return True
+
+                    # Actual Files
                     file_to_send = message.media
                     if isinstance(message.media, MessageMediaPhoto):
                         file_to_send = message.photo
                     elif isinstance(message.media, MessageMediaDocument):
                         file_to_send = message.document
                     
-                    await client.send_file(
-                        target,
-                        file=file_to_send,
-                        caption=message.text or ''
-                    )
-                    return True
+                    try:
+                        await client.send_file(
+                            target,
+                            file=file_to_send,
+                            caption=message.text or ''
+                        )
+                        return True
+                    except TypeError as e:
+                         # Fallback for unsupported media types in send_file
+                         logger.warning(f"Unsupported media for send_file: {type(message.media)}. Sending text only.")
+                         if message.text:
+                             await client.send_message(target, message.text)
+                             return True
+                         return False
+
                 # Text
                 elif message.text:
                     await client.send_message(target, message.text)
