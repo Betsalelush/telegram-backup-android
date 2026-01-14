@@ -117,8 +117,12 @@ class TransferManager:
             # 1. Resolve Entities
             status_callback(session_id, "Resolving channels...")
             primary = clients[0]
-            source_entity = await primary.get_entity(source)
-            target_entity = await primary.get_entity(target)
+            
+            try:
+                source_entity = await self.get_entity_robust(primary, source)
+                target_entity = await self.get_entity_robust(primary, target)
+            except Exception as e:
+                raise Exception(f"Failed to resolve channel ({source} -> {target}): {e}. Make sure the account is a member.")
             
             # 2. Iterate Messages
             status_callback(session_id, f"Scanning from ID {start_id}...")
@@ -324,3 +328,67 @@ class TransferManager:
         if consecutive_successes > 10:
             return random.uniform(Config.SMART_DELAY_MIN, Config.SMART_DELAY_MIN + 0.5)
         return random.uniform(Config.SMART_DELAY_MIN + 1, Config.SMART_DELAY_MAX)
+    async def get_entity_robust(self, client, entity_id):
+        """Try to resolve entity, refreshing dialogs if needed"""
+        try:
+            # First try direct
+            if str(entity_id).startswith('-100'):
+                # Try as int first if it's a string ID
+                try: 
+                    return await client.get_entity(int(entity_id))
+                except: pass
+            
+            return await client.get_entity(entity_id)
+        except ValueError:
+            # Not found in cache, might need to refresh dialogs
+            logger.info(f"Entity {entity_id} not found, refreshing dialogs...")
+            # We don't get all dialogs as it's expensive, but 'get_dialogs' refreshes cache
+            await client.get_dialogs(limit=100) 
+            
+            # Retry
+            if str(entity_id).startswith('-100'):
+                try: 
+                    return await client.get_entity(int(entity_id))
+                except: pass
+            return await client.get_entity(entity_id)
+
+    async def get_next_client(self, clients):
+        """Get next available client (Round Robin logic is simpler in caller)"""
+        # Here we just pick a random one or utilize the passed list logic
+        # For now, just return a random one to spread load
+        import random
+        return random.choice(clients)
+
+    async def check_global_rate_limit(self):
+        """Global rate limiting to avoid Bans"""
+        now = time.time()
+        
+        # Reset if minute passed
+        if not self.minute_start_time or (now - self.minute_start_time) > 60:
+            self.minute_start_time = now
+            self.messages_per_minute = 0
+            
+        # Check limit
+        if self.messages_per_minute >= self.max_messages_per_minute:
+            wait_time = 60 - (now - self.minute_start_time) + 1
+            if wait_time > 0:
+                logger.warning(f"Global rate limit hit ({self.messages_per_minute}/min). Waiting {wait_time:.1f}s...")
+                await asyncio.sleep(wait_time)
+                # Reset after wait
+                self.minute_start_time = time.time()
+                self.messages_per_minute = 0
+                
+        self.messages_per_minute += 1
+
+    def calculate_delay(self, consecutive_successes):
+        """Smart delay based on success streak"""
+        # Base delay 2-5 seconds
+        base = random.uniform(2, 5)
+        
+        # If we are on a roll, we can go slightly faster (down to 1.5s)
+        # But assume safey first
+        if consecutive_successes > 50:
+             # Very stable, maybe 1.5 - 3
+             return random.uniform(1.5, 3.0)
+        
+        return base
