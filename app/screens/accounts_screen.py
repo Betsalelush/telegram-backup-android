@@ -134,16 +134,8 @@ class AccountsScreen(Screen):
         fab.bind(on_release=self.show_add_account_dialog)
         self.add_widget(fab)
         
-        self.add_widget(root_box)
-        
-        # FAB (MD3)
-        add_btn = MDFabButton(
-            style="standard",
-            icon="plus",
-            pos_hint={"right": .9, "bottom": .05}
-        )
-        add_btn.bind(on_release=self.show_add_account_dialog)
-        self.add_widget(add_btn)
+
+
 
     def go_back(self, *args):
         self.manager.current = 'action'
