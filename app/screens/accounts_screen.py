@@ -10,6 +10,7 @@ from kivy.core.clipboard import Clipboard
 from kivy.uix.image import AsyncImage
 
 # KivyMD 2.0.0 Imports
+from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.scrollview import MDScrollView
 from kivymd.uix.label import MDLabel
@@ -62,13 +63,23 @@ class AccountsScreen(Screen):
         add_breadcrumb("AccountsScreen initialized")
     
     def on_enter(self):
+        # Update background on enter
+        app = MDApp.get_running_app()
+        if hasattr(self, 'root_box'):
+            self.root_box.md_bg_color = app.theme_cls.backgroundColor
+            
         self.load_accounts_list()
 
     def build_ui(self):
         self.clear_widgets()
+        app = MDApp.get_running_app()
         
         # Root Layout
-        root_box = MDBoxLayout(orientation='vertical', spacing=0)
+        self.root_box = MDBoxLayout(
+            orientation='vertical', 
+            spacing=0,
+            md_bg_color=app.theme_cls.backgroundColor
+        )
         
         # Toolbar (MD3)
         self.toolbar = MDTopAppBar(type="small")
@@ -90,13 +101,38 @@ class AccountsScreen(Screen):
         trailing_container.add_widget(cog_btn)
         self.toolbar.add_widget(trailing_container)
         
-        root_box.add_widget(self.toolbar)
+        root_box = self.root_box # Alias for legacy code usage below if needed, but we use self.root_box
+        
+        self.root_box.add_widget(self.toolbar)
         
         # Content
         scroll = MDScrollView()
         self.accounts_list = MDList()
         scroll.add_widget(self.accounts_list)
-        root_box.add_widget(scroll)
+        self.root_box.add_widget(scroll)
+        
+        # FAB (Bottom Right)
+        # In MD3, FAB often goes in a FloatLayout or Overlay, 
+        # but pure MDBoxLayout cuts it off.
+        # Let's just put it at bottom of the box for now or use FloatLayout wrapper if needed.
+        # But for list screens, standard is usually FAB over list.
+        # Since we use simple layout, let's inject FAB into a FloatLayout wrapper?
+        # Actually, simpler: Let's refactor root to Float, add Box(Toolbar, List), then FAB.
+        
+        # Re-doing Layout structure for FAB support
+        # We need to re-assign self.root_box to be the INNER box, and allow FAB on top.
+        # BUT current code added root_box to self.
+        
+        self.add_widget(self.root_box)
+        
+        # Add FAB
+        fab = MDFabButton(
+            icon="plus",
+            style="standard",
+            pos_hint={"right": .95, "bottom": .05},
+        )
+        fab.bind(on_release=self.show_add_account_dialog)
+        self.add_widget(fab)
         
         self.add_widget(root_box)
         

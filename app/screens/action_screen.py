@@ -21,6 +21,12 @@ class ActionScreen(Screen):
         super().__init__(**kwargs)
         self.build_ui()
         add_breadcrumb("ActionScreen initialized")
+
+    def on_enter(self, *args):
+        # Ensure background is updated when entering screen
+        app = MDApp.get_running_app()
+        if hasattr(self, 'root_container'):
+             self.root_container.md_bg_color = app.theme_cls.backgroundColor
     
     def build_ui(self):
         """Build screen UI"""
@@ -80,19 +86,26 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            # "Sausage" shape = Stadium (Full rounded corners)
-            # Wide horizontal
-            # Icon left, Text middle/left
+            # User wants: "Thinner and Longer"
+            # Height: 48dp (Standard thin)
+            # Width: 0.95 (Almost full screen)
             
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint_x=0.85, 
-                height="56dp",
-                radius=[28, 28, 28, 28], # Height/2 for stadium
+                size_hint_x=0.9, 
+                height="48dp",
+                radius=[8, 8, 8, 8], # Slightly rounded, not full sausage? User said "Points in corners"? 
+                # User said: "I wanted it like a horizontal sausage and in corners round color" - wait.
+                # "I want it thinner and longer and words inside fully"
+                # Let's go with Stadium (Sausage) but thinner.
+                # Radius = Height / 2 = 24
             )
+            btn.radius = [24, 24, 24, 24]
             
             # Content
+            # To ensure text fits, we might need to adjust role or alignment
+            
             if icon:
                 btn.add_widget(MDButtonIcon(
                     icon=icon, 
@@ -102,8 +115,8 @@ class ActionScreen(Screen):
             btn.add_widget(MDButtonText(
                 text=text, 
                 pos_hint={"center_y": .5},
-                font_style="Title",
-                role="medium"
+                font_style="Title", 
+                role="small", # Smaller text to ensure it fits? Or medium.
             ))
             
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))

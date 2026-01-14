@@ -10,6 +10,7 @@ from kivy.uix.widget import Widget
 from kivy.core.clipboard import Clipboard
 
 # KivyMD 2.0.0
+from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.scrollview import MDScrollView
@@ -60,12 +61,23 @@ class TransferScreen(Screen):
         if not self.layout_built:
             self.build_ui()
             self.layout_built = True
+
+        # Ensure theme background
+        app = MDApp.get_running_app()
+        if hasattr(self, 'root_box'):
+            self.root_box.md_bg_color = app.theme_cls.backgroundColor
+
         self.refresh_accounts()
 
     def build_ui(self):
         self.clear_widgets()
+        app = MDApp.get_running_app()
         
-        root_box = MDBoxLayout(orientation='vertical', spacing=0)
+        self.root_box = MDBoxLayout(
+            orientation='vertical', 
+            spacing=0,
+            md_bg_color=app.theme_cls.backgroundColor
+        )
         
         # Toolbar
         self.toolbar = MDTopAppBar(type="small")
@@ -75,7 +87,7 @@ class TransferScreen(Screen):
         leading.add_widget(back)
         self.toolbar.add_widget(leading)
         self.toolbar.add_widget(MDTopAppBarTitle(text="Transfer Dashboard"))
-        root_box.add_widget(self.toolbar)
+        self.root_box.add_widget(self.toolbar)
         
         # Content Split
         content_split = MDBoxLayout(orientation='vertical', spacing="10dp", padding=0)
@@ -166,8 +178,8 @@ class TransferScreen(Screen):
         bottom_scroll.add_widget(self.tasks_list)
         content_split.add_widget(bottom_scroll)
         
-        root_box.add_widget(content_split)
-        self.add_widget(root_box)
+        self.root_box.add_widget(content_split)
+        self.add_widget(self.root_box)
 
     def set_mode(self, val, active):
         if active: self.selected_mode = val

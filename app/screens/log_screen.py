@@ -9,6 +9,7 @@ from kivy.clock import Clock
 from kivy.properties import StringProperty
 
 # KivyMD 2.0.0
+from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.appbar import (
     MDTopAppBar, 
@@ -31,10 +32,20 @@ class LogScreen(Screen):
         super().__init__(**kwargs)
         self.build_ui()
         self.setup_log_handler()
+
+    def on_enter(self):
+        # Update background on enter
+        app = MDApp.get_running_app()
+        if hasattr(self, 'layout'):
+            self.layout.md_bg_color = app.theme_cls.backgroundColor
         
     def build_ui(self):
         self.clear_widgets()
-        layout = MDBoxLayout(orientation='vertical')
+        app = MDApp.get_running_app()
+        self.layout = MDBoxLayout(
+            orientation='vertical',
+            md_bg_color=app.theme_cls.backgroundColor
+        )
         
         # Toolbar
         self.toolbar = MDTopAppBar(type="small")
@@ -53,20 +64,20 @@ class LogScreen(Screen):
         trailing.add_widget(trash)
         self.toolbar.add_widget(trailing)
         
-        layout.add_widget(self.toolbar)
+        self.layout.add_widget(self.toolbar)
         
         # Log view
         self.log_view = TextInput(
             text=self.log_text,
+            text_color=(0, 1, 0, 1), # Matrix green logs
             readonly=True,
-            background_color=(0, 0, 0, 1),
-            foreground_color=(0, 1, 0, 1),
             font_size="12sp",
+            font_family="RobotoMono" # Monospace if available
         )
-        self.bind(log_text=self._update_text)
-        layout.add_widget(self.log_view)
+        self.log_view.bind(text=self._update_text)
+        self.layout.add_widget(self.log_view)
         
-        self.add_widget(layout)
+        self.add_widget(self.layout)
         
     def setup_log_handler(self):
         class UILogHandler(logging.Handler):
