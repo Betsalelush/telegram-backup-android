@@ -95,13 +95,51 @@ class DownloadManager:
                     logger.error(f"Failed to download message {message.id}: {e}")
                     # Continue even if one fails
             
-            await callback(f"Finished! Saved {downloaded_count} files in 'downloads/{safe_title}'")
+            # ZIP LOGIC
+            if downloaded_count > 0:
+                await callback(f"Compressing {downloaded_count} files into ZIP...")
+                
+                zip_path = await self._create_zip(download_path)
+                
+                if zip_path:
+                    await callback(f"Files compressed to:\n{os.path.basename(zip_path)}")
+                    
+                    # Cleanup directory? user asked for zip instead of folder
+                    # Let's keep it safe: remove original folder if zip success
+                    try:
+                        import shutil
+                        shutil.rmtree(download_path)
+                        await callback("Original folder removed.")
+                    except Exception as e:
+                        logger.error(f"Cleanup error: {e}")
+                else:
+                    await callback("Compression failed!")
+            
+            await callback(f"Finished! {downloaded_count} files.")
             
         except Exception as e:
             logger.error(f"Download Session Error: {e}")
             await callback(f"Critical Error: {e}")
             import traceback
             traceback.print_exc()
+
+    async def _create_zip(self, folder_path):
+        """Create a zip archive of the folder, running in executor"""
+        import shutil
+        import asyncio
+        
+        loop = asyncio.get_event_loop()
+        
+        def do_zip():
+            try:
+                # shutil.make_archive(base_name, format, root_dir)
+                # base_name should not include extension
+                return shutil.make_archive(folder_path, 'zip', folder_path)
+            except Exception as e:
+                logger.error(f"Zip error: {e}")
+                return None
+                
+        return await loop.run_in_executor(None, do_zip)
 
     def _should_download(self, message, file_types):
         """Check if message matches selected file types"""
