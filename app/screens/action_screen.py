@@ -4,7 +4,7 @@ Main menu for selecting actions
 """
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon, MDIconButton, MDFabButton
+from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon, MDIconButton
 from kivymd.uix.label import MDLabel
 from kivy.uix.widget import Widget
 from kivymd.app import MDApp
@@ -25,38 +25,53 @@ class ActionScreen(Screen):
     def build_ui(self):
         """Build screen UI"""
         self.clear_widgets()
-
-        # Main layout with centering
-        layout = MDBoxLayout(
+        
+        # We need a root container that ADAPTS to the theme background
+        # By default Screen is transparent?, so Window color shows.
+        # But we want explicit control.
+        self.root_container = MDBoxLayout(
             orientation='vertical',
-            padding="30dp",
-            spacing="30dp",
-            pos_hint={"center_x": 0.5, "center_y": 0.5},
-            adaptive_height=True
+            md_bg_color=MDApp.get_running_app().theme_cls.backgroundColor
         )
 
-        # Theme Toggle (Top Right)
+        # Top Bar for Theme Toggle
+        top_bar = MDBoxLayout(adaptive_height=True, padding=["20dp", "20dp"])
+        top_bar.add_widget(Widget()) # Push to right
+        
         theme_btn = MDIconButton(
             icon="theme-light-dark",
             style="standard",
-            pos_hint={"right": 0.95, "top": 0.95},
         )
         theme_btn.bind(on_release=self.toggle_theme)
-        # We need to add this to the root container, not the centered layout
+        top_bar.add_widget(theme_btn)
+        
+        self.root_container.add_widget(top_bar)
+        
+        # Spacer
+        self.root_container.add_widget(Widget())
+
+        # Main Central Layout
+        center_layout = MDBoxLayout(
+            orientation='vertical',
+            padding="30dp",
+            spacing="25dp", # Slightly tighter spacing
+            pos_hint={"center_x": 0.5},
+            adaptive_height=True
+        )
 
         # Title
         title = MDLabel(
             text="Telegram Backup",
             halign="center",
-            font_style="Display", # H4 is DisplaySmall/Medium in MD3
+            font_style="Display",
             role="medium",
             theme_text_color="Primary",
             size_hint_y=None,
             height="120dp"
         )
-        layout.add_widget(title)
+        center_layout.add_widget(title)
         
-        # 4 Main Buttons
+        # Buttons
         buttons = [
             ("Manage Accounts", "accounts", "account-group"),
             ("Transfer Console", "transfer", "transfer"),
@@ -65,63 +80,77 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
+            # "Sausage" shape = Stadium (Full rounded corners)
+            # Wide horizontal
+            # Icon left, Text middle/left
+            
             btn = MDButton(
-                style="filled", 
-                # In MD 2.0.0 'filled' uses primary color background.
-                # To get rectangular:
-                radius=[4, 4, 4, 4], 
+                style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint_x=0.7, 
-                height="64dp"
+                size_hint_x=0.85, 
+                height="56dp",
+                radius=[28, 28, 28, 28], # Height/2 for stadium
             )
-            # Center content in button
-            # Note: MD3 buttons auto-handle contrast if using standard styles.
-            # But user reported confusion.
-            # In Dark Mode: Primary color (Lavender) usually has black text.
-            # User wants White text on Black? Or just standard contrast?
-            # "When Dark: Buttons should be White on Black? Or lavender"
-            # It seems user sees Lavender circle with text outside.
-            # MDButton behaves like a container.
             
-            # Let's try 'outlined' style for high contrast or stay 'filled' but ensure radius is small.
-            # User wants: "Rectangular, not round".
-            
-            # Center content in button
-            
+            # Content
             if icon:
-                btn.add_widget(MDButtonIcon(icon=icon, pos_hint={"center_y": .5}))
+                btn.add_widget(MDButtonIcon(
+                    icon=icon, 
+                    pos_hint={"center_y": .5}
+                ))
             
-            btn.add_widget(MDButtonText(text=text, pos_hint={"center_y": .5}))
+            btn.add_widget(MDButtonText(
+                text=text, 
+                pos_hint={"center_y": .5},
+                font_style="Title",
+                role="medium"
+            ))
             
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
-            layout.add_widget(btn)
+            center_layout.add_widget(btn)
 
-        # Container to center
-        container = MDBoxLayout(orientation='vertical')
+        self.root_container.add_widget(center_layout)
         
-        # Top Bar for Theme Toggle
-        top_bar = MDBoxLayout(adaptive_height=True, padding=[20, 20])
-        top_bar.add_widget(Widget()) # Push to right
-        top_bar.add_widget(theme_btn)
-        
-        container.add_widget(top_bar)
-        container.add_widget(Widget())
-        container.add_widget(layout)
-        container.add_widget(Widget())
+        # Spacer
+        self.root_container.add_widget(Widget())
 
-        self.add_widget(container)
+        self.add_widget(self.root_container)
+        
+        # Bind theme change to update background manually if needed
+        app = MDApp.get_running_app()
+        app.bind(theme_cls=self.update_bg)
+
+    def update_bg(self, instance, value):
+        # Triggered when theme_style changes
+        # But we need to listen specifically to theme_style property change?
+        # Usually binding to theme_cls is redundant if using kivymd widgets correctly.
+        # But let's force update color.
+        if hasattr(self, 'root_container'):
+            self.root_container.md_bg_color = instance.theme_cls.backgroundColor
 
     def toggle_theme(self, instance):
         """Switch between Light and Dark mode"""
         app = MDApp.get_running_app()
         if app.theme_cls.theme_style == "Dark":
+            # Switch to Light
             app.theme_cls.theme_style = "Light"
-            app.theme_cls.primary_palette = "White" # White background? No, palette defines accent.
-            # Let's try keeping palette neutral or high contrast to black.
-            app.theme_cls.primary_palette = "Gray" 
+            app.theme_cls.primary_palette = "Olive" # Something High Contrast? Or Gray
+            # User wants black buttons.
+            # In Light mode, Primary color fills the button.
+            # If we want black buttons, we need a dark palette.
+            # But "Black" isn't a palette. "Gray" or "Neutral"?
+            # Let's stick with "Gray" or similar dark tone.
         else:
+            # Switch to Dark
             app.theme_cls.theme_style = "Dark"
-            app.theme_cls.primary_palette = "Lavender" 
+            # User wants White buttons?
+            # In Dark mode, Primary color fills.
+            # If we want White buttons, we need "White" (not possible).
+            # "Lavender" is close to white-ish.
+            app.theme_cls.primary_palette = "Lavender"
+            
+        # Force background update explicitly
+        self.root_container.md_bg_color = app.theme_cls.backgroundColor
     
     def navigate_to(self, screen_name: str):
         logger.info(f"Navigating to: {screen_name}")
