@@ -86,26 +86,19 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            # User wants: "Thinner and Longer"
-            # Height: 48dp (Standard thin)
-            # Width: 0.95 (Almost full screen)
+            # Stadium Shape (Sausage)
+            # Height: 54dp
+            # Radius: 27dp (half of height)
             
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint_x=0.9, 
-                height="48dp",
-                radius=[8, 8, 8, 8], # Slightly rounded, not full sausage? User said "Points in corners"? 
-                # User said: "I wanted it like a horizontal sausage and in corners round color" - wait.
-                # "I want it thinner and longer and words inside fully"
-                # Let's go with Stadium (Sausage) but thinner.
-                # Radius = Height / 2 = 24
+                size_hint_x=0.85, 
+                height="54dp",
+                radius=[27, 27, 27, 27],
             )
-            btn.radius = [24, 24, 24, 24]
             
             # Content
-            # To ensure text fits, we might need to adjust role or alignment
-            
             if icon:
                 btn.add_widget(MDButtonIcon(
                     icon=icon, 
@@ -115,8 +108,8 @@ class ActionScreen(Screen):
             btn.add_widget(MDButtonText(
                 text=text, 
                 pos_hint={"center_y": .5},
-                font_style="Title", 
-                role="small", # Smaller text to ensure it fits? Or medium.
+                font_style="Label", # Using Label instead of Title for better fit
+                role="large",
             ))
             
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
