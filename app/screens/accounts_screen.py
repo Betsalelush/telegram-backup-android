@@ -5,11 +5,12 @@ Manage Telegram accounts
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.list import MDList, TwoLineAvatarIconListItem
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDFloatingActionButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDFloatingActionButton, MDIconButton
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivy.properties import ObjectProperty
+from kivy.core.clipboard import Clipboard
 
 from ..managers.account_manager import AccountManager
 from ..utils.logger import logger, add_breadcrumb
@@ -98,6 +99,7 @@ class AccountsScreen(Screen):
         # Toolbar (First item = Top)
         toolbar = MDTopAppBar(title="Accounts", elevation=4)
         toolbar.left_action_items = [["arrow-left", lambda x: self.go_back()]]
+        toolbar.right_action_items = [["cog", lambda x: self.show_global_settings()]]
         root_box.add_widget(toolbar)
         
         # Content (Fills remaining space)
@@ -130,34 +132,74 @@ class AccountsScreen(Screen):
             size_hint_y=None
         )
         
-        # Fields
-        self.name_field = MDTextField(hint_text="Account Name", mode="rectangle")
-        self.api_id_field = MDTextField(hint_text="API ID (Optional)", mode="rectangle")
-        self.api_hash_field = MDTextField(hint_text="API Hash (Optional)", mode="rectangle")
-        self.phone_field = MDTextField(hint_text="Phone Number (+972...)", mode="rectangle")
+        # Fields with Paste
+        content.add_widget(self.create_input_with_paste("Account Name", "name_field"))
+        content.add_widget(self.create_input_with_paste("Phone Number (+972...)", "phone_field"))
+        content.add_widget(self.create_input_with_paste("API ID (Optional)", "api_id_field"))
+        content.add_widget(self.create_input_with_paste("API Hash (Optional)", "api_hash_field"))
         
-        content.add_widget(self.name_field)
-        content.add_widget(self.phone_field)
-        content.add_widget(self.api_id_field)
-        content.add_widget(self.api_hash_field)
-        
-        # Buttons are handled by the Dialog container usually, but let's be explicit
+        # New: Hint about global settings
+        if self.account_manager.global_api_id:
+            content.add_widget(MDLabel(
+                text="* Using saved Global API credentials", 
+                theme_text_color="Hint", font_style="Caption"
+            ))
+
         self.dialog = MDDialog(
             title="Add New Account",
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(
-                    text="CANCEL",
-                    on_release=lambda x: self.dialog.dismiss()
-                ),
-                MDRaisedButton(
-                    text="ADD ACCOUNT",
-                    on_release=self.add_account_callback
-                ),
+                MDFlatButton(text="CANCEL", on_release=lambda x: self.dialog.dismiss()),
+                MDRaisedButton(text="ADD ACCOUNT", on_release=self.add_account_callback),
             ],
         )
         self.dialog.open()
+
+    def create_input_with_paste(self, hint, field_ref_name, password=False):
+        """Helper to create text field with a paste button"""
+        layout = MDBoxLayout(spacing="4dp", adaptive_height=True)
+        field = MDTextField(hint_text=hint, mode="rectangle", password=password)
+        setattr(self, field_ref_name, field)
+        layout.add_widget(field)
+        paste_btn = MDIconButton(icon="content-paste", pos_hint={"center_y": 0.5})
+        paste_btn.bind(on_release=lambda x: self.do_paste(field))
+        layout.add_widget(paste_btn)
+        return layout
+
+    def do_paste(self, field):
+        """Perform paste from clipboard"""
+        field.text = Clipboard.paste()
+
+    def show_global_settings(self, *args):
+        """Show dialog to set global API ID/Hash"""
+        content = MDBoxLayout(orientation='vertical', spacing="12dp", adaptive_height=True)
+        
+        content.add_widget(self.create_input_with_paste("Global API ID", "g_api_id_field"))
+        content.add_widget(self.create_input_with_paste("Global API Hash", "g_api_hash_field"))
+        
+        # Pre-fill
+        self.g_api_id_field.text = self.account_manager.global_api_id
+        self.g_api_hash_field.text = self.account_manager.global_api_hash
+        
+        self.settings_dialog = MDDialog(
+            title="Global API Settings",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(text="CANCEL", on_release=lambda x: self.settings_dialog.dismiss()),
+                MDRaisedButton(text="SAVE", on_release=self.save_global_settings_callback),
+            ],
+        )
+        self.settings_dialog.open()
+
+    def save_global_settings_callback(self, *args):
+        api_id = self.g_api_id_field.text
+        api_hash = self.g_api_hash_field.text
+        self.account_manager.save_global_settings(api_id, api_hash)
+        self.settings_dialog.dismiss()
+        from kivymd.toast import toast
+        toast("Global API Settings Saved")
         
     def add_account_callback(self, *args):
         """Callback to extract data and add account"""
@@ -268,38 +310,53 @@ class AccountsScreen(Screen):
             self.accounts_list.add_widget(item)
 
     def show_account_options(self, account_id):
-        """Show options for account using a simple dialog instead of bottom sheet for reliability"""
-        # Determine status
+        """Show options for account - Fixed layout using vertical buttons to avoid overflow"""
         account = self.account_manager.get_account(account_id)
         if not account: return
         
         is_connected = account.get('authorized', False)
         
-        buttons = []
+        # Custom content to stack buttons vertically
+        content = MDBoxLayout(orientation='vertical', spacing="8dp", adaptive_height=True, padding=["10dp", "10dp", "10dp", "20dp"])
+        
         if not is_connected:
-            buttons.append(MDRaisedButton(
-                text="CONNECT (SMS)", 
+            sms_btn = MDRaisedButton(
+                text="CONNECT VIA SMS", 
+                pos_hint={"center_x": 0.5},
+                size_hint_x=0.9,
                 on_release=lambda x: self.deferred_dialog_action(account_id, 'manual_connect')
-            ))
-            buttons.append(MDRaisedButton(
-                text="CONNECT (QR)", 
+            )
+            qr_btn = MDRaisedButton(
+                text="CONNECT VIA QR CODE",
+                pos_hint={"center_x": 0.5},
+                size_hint_x=0.9,
                 on_release=lambda x: self.deferred_dialog_action(account_id, 'qr_connect')
-            ))
+            )
+            content.add_widget(sms_btn)
+            content.add_widget(qr_btn)
         else:
-            buttons.append(MDRaisedButton(
-                text="DISCONNECT", 
+            disc_btn = MDRaisedButton(
+                text="DISCONNECT ACCOUNT",
+                pos_hint={"center_x": 0.5},
+                size_hint_x=0.9,
+                md_bg_color=(1, 0.3, 0.3, 1), # Light red
                 on_release=lambda x: self.deferred_dialog_action(account_id, 'disconnect')
-            ))
+            )
+            content.add_widget(disc_btn)
             
-        buttons.append(MDFlatButton(
-            text="DELETE", 
+        del_btn = MDFlatButton(
+            text="DELETE ACCOUNT",
+            pos_hint={"center_x": 0.5},
+            theme_text_color="Error",
             on_release=lambda x: self.deferred_dialog_action(account_id, 'delete')
-        ))
+        )
+        content.add_widget(del_btn)
         
         self.options_dialog = MDDialog(
             title=f"Account: {account['name']}",
-            type="simple",
-            buttons=buttons + [MDFlatButton(text="CANCEL", on_release=lambda x: self.options_dialog.dismiss())]
+            type="custom",
+            content_cls=content,
+            buttons=[MDFlatButton(text="CANCEL", on_release=lambda x: self.options_dialog.dismiss())]
         )
         self.options_dialog.open()
 
@@ -413,12 +470,14 @@ class AccountsScreen(Screen):
             toast(f"Error: {e}")
 
     def show_auth_dialog(self, account_id, title, mode="code"):
-        """Show dialog for code or password"""
+        """Show dialog for code or password with Paste button"""
         content = MDBoxLayout(orientation='vertical', adaptive_height=True, spacing="12dp")
-        self.auth_input = MDTextField(hint_text=title, mode="rectangle")
+        
+        # Auth field with Paste
+        auth_layout = self.create_input_with_paste(title, "auth_input")
         if mode == "password":
             self.auth_input.password = True
-        content.add_widget(self.auth_input)
+        content.add_widget(auth_layout)
         
         self.auth_dialog = MDDialog(
             title=title,

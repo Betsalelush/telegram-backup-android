@@ -5,12 +5,13 @@ Configure and run message transfers
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.button import MDRaisedButton, MDFlatButton
+from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.label import MDLabel
 from kivy.properties import NumericProperty
 from kivy.uix.widget import Widget
+from kivy.core.clipboard import Clipboard
 
 from ..managers.transfer_manager import TransferManager
 from ..managers.account_manager import AccountManager
@@ -49,14 +50,6 @@ class TransferScreen(Screen):
         self.refresh_accounts()
 
     def build_ui(self):
-        """Build screen UI with Task Dashboard"""
-        from kivymd.uix.selectioncontrol import MDCheckbox
-        from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
-        from kivymd.uix.scrollview import MDScrollView
-        from kivymd.uix.gridlayout import MDGridLayout
-        from kivymd.uix.list import MDList
-        
-    def build_ui(self):
         """Build screen UI with Task Dashboard - Robust Layout"""
         from kivymd.uix.selectioncontrol import MDCheckbox
         from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
@@ -85,12 +78,9 @@ class TransferScreen(Screen):
         # Title
         top_content.add_widget(MDLabel(text="New Task", font_style="H6", theme_text_color="Primary", adaptive_height=True))
         
-        # Fields
-        self.source_field = MDTextField(hint_text="Source Channel (ID or Link)", mode="rectangle")
-        top_content.add_widget(self.source_field)
-        
-        self.target_field = MDTextField(hint_text="Target Channel (ID or Link)", mode="rectangle")
-        top_content.add_widget(self.target_field)
+        # Fields with Paste
+        top_content.add_widget(self.create_input_with_paste("Source Channel (ID or Link)", "source_field"))
+        top_content.add_widget(self.create_input_with_paste("Target Channel (ID or Link)", "target_field"))
         
         # Options Row
         grid = MDGridLayout(cols=2, spacing=10, adaptive_height=True)
@@ -98,7 +88,6 @@ class TransferScreen(Screen):
         grid.add_widget(self.start_id_field)
         
         # URL Shortener Button
-        from kivymd.uix.button import MDIconButton
         shorten_btn = MDIconButton(icon="link-variant-plus")
         shorten_btn.bind(on_release=self.shorten_links)
         grid.add_widget(shorten_btn)
@@ -304,6 +293,25 @@ class TransferScreen(Screen):
             new_t = shorten_url(t_text)
             self.target_field.text = new_t
             toast("Target URL Shortened")
+
+    def create_input_with_paste(self, hint, field_ref_name, **kwargs):
+        """Helper to create text field with a paste button"""
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDIconButton
+        layout = MDBoxLayout(spacing="4dp", adaptive_height=True)
+        field = MDTextField(hint_text=hint, mode="rectangle", **kwargs)
+        setattr(self, field_ref_name, field)
+        layout.add_widget(field)
+        paste_btn = MDIconButton(icon="content-paste", pos_hint={"center_y": 0.5})
+        paste_btn.bind(on_release=lambda x: self.do_paste(field))
+        layout.add_widget(paste_btn)
+        return layout
+
+    def do_paste(self, field):
+        """Perform paste from clipboard"""
+        from kivy.core.clipboard import Clipboard
+        field.text = Clipboard.paste()
 
     def go_back(self):
         self.manager.current = 'action'

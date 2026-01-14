@@ -42,7 +42,42 @@ class AccountManager:
         # Load existing accounts
         self.load_accounts()
         
+        # New: Global credentials
+        self.global_api_id = ""
+        self.global_api_hash = ""
+        self._load_global_settings()
+        
         add_breadcrumb("AccountManager initialized", {"accounts_count": len(self.accounts)})
+    
+    def _load_global_settings(self):
+        """Internal: Load global settings from JSON if exists"""
+        if os.path.exists(self.accounts_file):
+            try:
+                with open(self.accounts_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.global_api_id = data.get('global_api_id', "")
+                    self.global_api_hash = data.get('global_api_hash', "")
+            except: pass
+
+    def save_global_settings(self, api_id: str, api_hash: str):
+        """Save global API credentials"""
+        self.global_api_id = api_id
+        self.global_api_hash = api_hash
+        
+        # We need to save to file
+        try:
+            data = {}
+            if os.path.exists(self.accounts_file):
+                with open(self.accounts_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            
+            data['global_api_id'] = api_id
+            data['global_api_hash'] = api_hash
+            
+            with open(self.accounts_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to save global settings: {e}")
     
     def load_accounts(self):
         """
@@ -94,29 +129,26 @@ class AccountManager:
             logger.error(f"Error saving accounts: {e}")
             return False
     
-    def add_account(self, name: str, api_id: str, api_hash: str, phone: str) -> str:
+    def add_account(self, name: str, phone: str, api_id: str = None, api_hash: str = None) -> str:
         """
-        Add new account
-        
-        Args:
-            name: Account name
-            api_id: Telegram API ID
-            api_hash: Telegram API Hash
-            phone: Phone number
-            
-        Returns:
-            str: Account ID
+        Add a new account to the manager
         """
-        # Generate unique ID
         account_id = f"acc_{uuid.uuid4().hex[:12]}"
         
+        # Use provided or global if empty
+        final_api_id = api_id if api_id and api_id.strip() else self.global_api_id
+        final_api_hash = api_hash if api_hash and api_hash.strip() else self.global_api_hash
+        
+        # Fallback to public if everything is empty
+        if not final_api_id: final_api_id = "21568473"
+        if not final_api_hash: final_api_hash = "cc39659b867c26ae67f40cfdca8705f1"
+
         # Create account object
         account = {
             'id': account_id,
             'name': name,
-            'api_id': api_id if api_id else "21568473", # Using a default public ID if empty? 
-            # Actually, better to use the one provided or a fallback from Config.
-            'api_hash': api_hash if api_hash else "cc39659b867c26ae67f40cfdca8705f1",
+            'api_id': final_api_id,
+            'api_hash': final_api_hash,
             'phone': phone,
             'session_path': Config.get_session_path(phone),
             'is_connected': False,
