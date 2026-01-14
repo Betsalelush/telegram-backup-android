@@ -217,7 +217,14 @@ class AccountsScreen(Screen):
                 return
             
             # Logic to add account
-            acc_id = self.account_manager.add_account(name, api_id, api_hash, phone)
+            # FIX: Ensure arguments are passed in correct order or usually keyword arguments
+            # Signature: add_account(name, phone, api_id=None, api_hash=None)
+            acc_id = self.account_manager.add_account(
+                name=name, 
+                phone=phone, 
+                api_id=api_id, 
+                api_hash=api_hash
+            )
             
             if acc_id:
                 logger.info(f"Account added successfully: {acc_id}")
@@ -345,7 +352,7 @@ class AccountsScreen(Screen):
             content.add_widget(disc_btn)
             
         del_btn = MDFlatButton(
-            text="DELETE ACCOUNT",
+            text="REMOVE FROM APP",
             pos_hint={"center_x": 0.5},
             theme_text_color="Error",
             on_release=lambda x: self.deferred_dialog_action(account_id, 'delete')
