@@ -86,40 +86,16 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            # Stadium Shape (Wide Sausage) - like image 2
-            # Make it WIDER and taller for better visibility
-            
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint=(None, None),  # Fixed size for consistent look
-                width="320dp",
-                height="56dp",
             )
-            
-            # Force stadium shape - must be set AFTER widget creation
-            # Use Kivy Clock to ensure it's applied after the widget is rendered
-            from kivy.clock import Clock
-            def set_radius(dt, button=btn):
-                button.radius = [28, 28, 28, 28]
-                # Also try setting _radius for internal use
-                if hasattr(button, '_radius'):
-                    button._radius = 28
-            Clock.schedule_once(lambda dt: set_radius(dt, btn), 0)
             
             # Content
             if icon:
-                btn.add_widget(MDButtonIcon(
-                    icon=icon, 
-                    pos_hint={"center_y": .5}
-                ))
+                btn.add_widget(MDButtonIcon(icon=icon))
             
-            btn.add_widget(MDButtonText(
-                text=text, 
-                pos_hint={"center_y": .5},
-                font_style="Title",  # Larger font
-                role="large",
-            ))
+            btn.add_widget(MDButtonText(text=text))
             
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
             center_layout.add_widget(btn)
