@@ -55,12 +55,14 @@ class Config:
         cls.BASE_DIR = base_dir
         cls.SESSIONS_DIR = os.path.join(base_dir, 'sessions')
         cls.PROGRESS_DIR = os.path.join(base_dir, 'progress')
+        cls.DOWNLOADS_DIR = os.path.join(base_dir, 'downloads') # New download dir
         cls.ACCOUNTS_FILE = os.path.join(base_dir, 'accounts.json')
         cls.TRANSFERS_FILE = os.path.join(base_dir, 'transfers.json')
         
         # Create directories
         os.makedirs(cls.SESSIONS_DIR, exist_ok=True)
         os.makedirs(cls.PROGRESS_DIR, exist_ok=True)
+        os.makedirs(cls.DOWNLOADS_DIR, exist_ok=True)
     
     @classmethod
     def get_session_path(cls, phone):

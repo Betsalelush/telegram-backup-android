@@ -4,9 +4,10 @@ Main menu for selecting actions
 """
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon
+from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon, MDIconButton, MDFabButton
 from kivymd.uix.label import MDLabel
 from kivy.uix.widget import Widget
+from kivymd.app import MDApp
 
 from ..utils.logger import logger, add_breadcrumb
 
@@ -29,10 +30,19 @@ class ActionScreen(Screen):
         layout = MDBoxLayout(
             orientation='vertical',
             padding="30dp",
-            spacing="40dp",
+            spacing="30dp",
             pos_hint={"center_x": 0.5, "center_y": 0.5},
             adaptive_height=True
         )
+
+        # Theme Toggle (Top Right)
+        theme_btn = MDIconButton(
+            icon="theme-light-dark",
+            style="standard",
+            pos_hint={"right": 0.95, "top": 0.95},
+        )
+        theme_btn.bind(on_release=self.toggle_theme)
+        # We need to add this to the root container, not the centered layout
 
         # Title
         title = MDLabel(
@@ -46,10 +56,11 @@ class ActionScreen(Screen):
         )
         layout.add_widget(title)
         
-        # 3 Main Buttons
+        # 4 Main Buttons
         buttons = [
             ("Manage Accounts", "accounts", "account-group"),
             ("Transfer Console", "transfer", "transfer"),
+            ("Download Chat", "download", "download"),
             ("Live Logs", "logs", "console-line"),
         ]
         
@@ -57,27 +68,43 @@ class ActionScreen(Screen):
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint_x=0.8,
+                size_hint_x=0.7, 
+                height="64dp"
             )
-            # MDButton in 2.0.0 uses sizing differently.
-            # To set fixed width, use size_hint_x=None + width
-            # But let's use adaptive
+            # Center content in button
             
             if icon:
-                btn.add_widget(MDButtonIcon(icon=icon))
+                btn.add_widget(MDButtonIcon(icon=icon, pos_hint={"center_y": .5}))
             
-            btn.add_widget(MDButtonText(text=text))
+            btn.add_widget(MDButtonText(text=text, pos_hint={"center_y": .5}))
             
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
             layout.add_widget(btn)
 
         # Container to center
         container = MDBoxLayout(orientation='vertical')
+        
+        # Top Bar for Theme Toggle
+        top_bar = MDBoxLayout(adaptive_height=True, padding=[20, 20])
+        top_bar.add_widget(Widget()) # Push to right
+        top_bar.add_widget(theme_btn)
+        
+        container.add_widget(top_bar)
         container.add_widget(Widget())
         container.add_widget(layout)
         container.add_widget(Widget())
 
         self.add_widget(container)
+
+    def toggle_theme(self, instance):
+        """Switch between Light and Dark mode"""
+        app = MDApp.get_running_app()
+        if app.theme_cls.theme_style == "Dark":
+            app.theme_cls.theme_style = "Light"
+            app.theme_cls.primary_palette = "Blue" # Blue looks better in Light
+        else:
+            app.theme_cls.theme_style = "Dark"
+            app.theme_cls.primary_palette = "Lavender" # Lavender looks better in Dark
     
     def navigate_to(self, screen_name: str):
         logger.info(f"Navigating to: {screen_name}")

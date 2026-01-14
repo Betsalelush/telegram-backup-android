@@ -14,6 +14,7 @@ from app.managers.transfer_manager import TransferManager
 from app.screens.accounts_screen import AccountsScreen
 from app.screens.action_screen import ActionScreen
 from app.screens.transfer_screen import TransferScreen
+from app.screens.download_screen import DownloadScreen
 from app.screens.log_screen import LogScreen
 from app.utils.logger import logger, init_sentry, add_breadcrumb
 
@@ -68,11 +69,17 @@ class TelegramBackupApp(MDApp):
             name='accounts'
         ))
         sm.add_widget(TransferScreen(
-            self.account_manager,
-            self.transfer_manager,
-            self.progress_manager,
-            name='transfer'
+            name='transfer',
+            account_manager=self.account_manager,
+            transfer_manager=self.transfer_manager,
+            progress_manager=self.progress_manager
         ))
+        
+        sm.add_widget(DownloadScreen(
+            name='download',
+            account_manager=self.account_manager
+        ))
+        
         sm.add_widget(LogScreen(name='logs'))
         
         logger.info("App initialized successfully")
