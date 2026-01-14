@@ -4,7 +4,7 @@ Main menu for selecting actions
 """
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDRaisedButton, MDIconButton
+from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon, MDIconButton
 from kivymd.uix.label import MDLabel
 from kivy.uix.widget import Widget
 from kivymd.app import MDApp
@@ -86,13 +86,17 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            btn = MDRaisedButton(
-                text=text,
-                icon=icon if icon else "",
+            btn = MDButton(
+                style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint=(0.8, None),
-                height="56dp"
+                size_hint_x=0.85
             )
+            
+            if icon:
+                btn.add_widget(MDButtonIcon(icon=icon))
+            
+            btn.add_widget(MDButtonText(text=text))
+            
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
             center_layout.add_widget(btn)
 
