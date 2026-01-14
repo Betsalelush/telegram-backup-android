@@ -93,9 +93,8 @@ class ActionScreen(Screen):
                 style="filled",
                 pos_hint={"center_x": 0.5},
                 size_hint=(None, None),  # Fixed size for consistent look
-                width="320dp",  # Wide like the example
-                height="56dp",  # Slightly taller
-                theme_radius="Custom",  # Enable custom radius in KivyMD 2.0
+                width="320dp",
+                height="56dp",
             )
             
             # Force stadium shape - must be set AFTER widget creation
