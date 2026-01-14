@@ -149,8 +149,11 @@ class AccountsScreen(Screen):
         )
         
         # Trailing paste icon
+        # Trailing paste icon
         paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        paste_icon.bind(on_release=lambda x: self.do_paste(field))
+        # Ensure correct binding. Using lambda might be capturing late?
+        # Let's bind directly to a method that handles it.
+        paste_icon.bind(on_release=lambda x, f=field: self.do_paste(f))
         field.add_widget(paste_icon)
         
         setattr(self, field_ref_name, field)
