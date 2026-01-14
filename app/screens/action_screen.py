@@ -57,6 +57,7 @@ class ActionScreen(Screen):
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
+                size_hint_x=0.8,
             )
             # MDButton in 2.0.0 uses sizing differently.
             # To set fixed width, use size_hint_x=None + width

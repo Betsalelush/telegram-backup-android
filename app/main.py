@@ -4,6 +4,7 @@ Telegram Backup Android App v3.0
 """
 import os
 from kivy.uix.screenmanager import ScreenManager
+from kivy.core.window import Window
 from kivymd.app import MDApp
 
 from app.config import Config
@@ -32,8 +33,12 @@ class TelegramBackupApp(MDApp):
     def build(self):
         """Build application"""
         # Set theme
-        self.theme_cls.primary_palette = "Blue"
-        self.theme_cls.theme_style = "Light"
+        # Set theme
+        self.theme_cls.primary_palette = "Lavender"  # Better contrast in Dark
+        self.theme_cls.theme_style = "Dark" # Force Dark to match black background
+        
+        # Bind back button
+        Window.bind(on_keyboard=self.on_keyboard)
         
         # Setup configuration
         self.setup_config()
@@ -108,6 +113,27 @@ class TelegramBackupApp(MDApp):
                 self.account_manager.disconnect_account(account['id'])
             )
 
+
+    def on_keyboard(self, window, key, scancode, codepoint, modifier):
+        """Handle hardware key events"""
+        if key == 27:  # Back button / Escape
+            sm = self.root
+            current_screen = sm.current_screen
+            
+            # If on Action (Home) screen, let system handle it (Minimize/Exit)
+            if sm.current == 'action':
+                return False
+                
+            # Check if screen has a 'go_back' method
+            if hasattr(current_screen, 'go_back'):
+                current_screen.go_back()
+                return True
+                
+            # Fallback: Go to action screen
+            sm.current = 'action'
+            return True
+            
+        return False
 
 if __name__ == '__main__':
     TelegramBackupApp().run()
