@@ -1,17 +1,8 @@
-# 📱 Telegram Backup Android - v3.1
+# 📱 Telegram Backup Android - v3.0
 
 אפליקציית אנדרואיד מודרנית להעברת הודעות בין ערוצי טלגרם עם תמיכה בריבוי חשבונות.
 
 [![Build Status](https://github.com/Betsalelush/telegram-backup-android/workflows/Build%20Android%20APK/badge.svg)](https://github.com/Betsalelush/telegram-backup-android/actions)
-
----
-
-## 📚 תיעוד מלא
-כל התיעוד המפורט זמין בתיקיית [`docs/`](./docs/):
-
-- **[זיכרון פרויקט (PROJECT_MEMORY.he.md)](./docs/PROJECT_MEMORY.he.md)** - מידע טכני מלא, תיקונים, וסטטוס הפרויקט
-- **[מדריך למשתמש (APP_USER_GUIDE.he.md)](./docs/APP_USER_GUIDE.he.md)** - הוראות שימוש מפורטות
-- **[README מפורט](./docs/README.md)** - גרסה מורחבת של מסמך זה
 
 ---
 
@@ -161,14 +152,6 @@ telegram-backup-android/
 │   ├── test_account_manager.py
 │   └── test_progress_manager.py
 │
-├── docs/                        # 📚 תיעוד
-│   ├── PROJECT_MEMORY.he.md    # זיכרון פרויקט טכני
-│   ├── APP_USER_GUIDE.he.md    # מדריך למשתמש
-│   └── README.md               # README מפורט
-│
-├── debug_tools/                 # 🔧 כלי ניפוי באגים
-│   └── (סקריפטים לבדיקת GitHub, Sentry וכו')
-│
 ├── .github/workflows/           # GitHub Actions
 │   └── build-apk.yml           # Workflow משופר עם cache
 │
@@ -176,9 +159,10 @@ telegram-backup-android/
 ├── buildozer.spec              # הגדרות build
 ├── requirements_full.txt       # תלויות (גרסאות קבועות)
 ├── sentry_logger.py            # Sentry logger נוסף
-└── README.md                   # המסמך הזה
+├── README.md                   # המסמך הזה
+├── BUILD_ERRORS.md             # תיעוד שגיאות build
+└── MASTER_PLAN.md              # תוכנית אב
 ```
-
 
 ---
 
@@ -340,10 +324,9 @@ MIT License
 
 ## 👨‍💻 מפתחים
 
-- **גרסה:** 3.1.0
-- **תאריך עדכון:** 14/01/2026
+- **גרסה:** 3.0.0
+- **תאריך עדכון:** 12/01/2026
 - **סטטוס:** ✅ מוכן לשימוש
-
 
 ---
 
