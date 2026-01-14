@@ -8,7 +8,7 @@ source.exclude_dirs = maxuser, tests, bin, .buildozer, .git, __pycache__, .githu
 source.exclude_patterns = license,images/*/*.jpg,check_*.py,fetch_*.py,test_*.py,syntax_check.py,scan_encoding.py,read_head.py
 version = 3.0
 
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,pyaes,rsa,pyasn1,pyshorteners
+requirements = python3,kivy==2.3.0,https://github.com/kivymd/KivyMD/archive/master.zip,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,pyaes,rsa,pyasn1,pyshorteners
 
 orientation = portrait
 fullscreen = 0

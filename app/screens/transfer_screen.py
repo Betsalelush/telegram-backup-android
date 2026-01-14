@@ -2,16 +2,35 @@
 Transfer Screen
 Configure and run message transfers
 """
+import asyncio
+import time
 from kivy.uix.screenmanager import Screen
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.progressbar import MDProgressBar
-from kivymd.uix.label import MDLabel
 from kivy.properties import NumericProperty
 from kivy.uix.widget import Widget
 from kivy.core.clipboard import Clipboard
+
+# KivyMD 2.0.0
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.gridlayout import MDGridLayout
+from kivymd.uix.scrollview import MDScrollView
+from kivymd.uix.label import MDLabel
+from kivymd.uix.selectioncontrol import MDCheckbox
+from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
+from kivymd.uix.textfield import MDTextField, MDTextFieldHintText, MDTextFieldTrailingIcon
+from kivymd.uix.list import (
+    MDList, 
+    MDListItem, 
+    MDListItemHeadlineText, 
+    MDListItemSupportingText,
+    MDListItemTrailingIcon
+)
+from kivymd.uix.appbar import (
+    MDTopAppBar, 
+    MDTopAppBarLeadingButtonContainer, 
+    MDActionTopAppBarButton, 
+    MDTopAppBarTitle
+)
+from kivymd.toast import toast
 
 from ..managers.transfer_manager import TransferManager
 from ..managers.account_manager import AccountManager
@@ -21,18 +40,8 @@ from ..utils.logger import logger, add_breadcrumb
 
 class TransferScreen(Screen):
     """
-    Screen for configuring and running transfers
-    
-    Features:
-    - Select accounts (Multi-select)
-    - Source/Target channels
-    - Start Message ID
-    - File Types selection
-    - Start/stop transfer
-    - Show progress
+    Screen for configuring and running transfers (MD3)
     """
-    
-    progress_value = NumericProperty(0)
     
     def __init__(self, account_manager, transfer_manager, progress_manager, **kwargs):
         super().__init__(**kwargs)
@@ -42,276 +51,245 @@ class TransferScreen(Screen):
         
         self.account_checks = {} 
         self.type_checks = {} 
+        self.tasks_map = {} # Maps session_id -> item widget
         
-        self.build_ui()
+        self.layout_built = False
         add_breadcrumb("TransferScreen initialized")
     
     def on_enter(self):
+        if not self.layout_built:
+            self.build_ui()
+            self.layout_built = True
         self.refresh_accounts()
 
     def build_ui(self):
-        """Build screen UI with Task Dashboard - Robust Layout"""
-        from kivymd.uix.selectioncontrol import MDCheckbox
-        from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
-        from kivymd.uix.scrollview import MDScrollView
-        from kivymd.uix.gridlayout import MDGridLayout
-        from kivymd.uix.list import MDList
+        self.clear_widgets()
         
-        # 1. Root Vertical Box
-        # We use a standard vertical box, adding widgets in order.
-        # This is the most reliable way in Kivy to stack things Top-to-Bottom.
         root_box = MDBoxLayout(orientation='vertical', spacing=0)
         
-        # Toolbar (Top)
-        toolbar = MDTopAppBar(title="Transfer Dashboard", elevation=4)
-        toolbar.left_action_items = [["arrow-left", lambda x: self.go_back()]]
-        root_box.add_widget(toolbar)
+        # Toolbar
+        self.toolbar = MDTopAppBar(type="small")
+        leading = MDTopAppBarLeadingButtonContainer()
+        back = MDActionTopAppBarButton(icon="arrow-left")
+        back.on_release = self.go_back
+        leading.add_widget(back)
+        self.toolbar.add_widget(leading)
+        self.toolbar.add_widget(MDTopAppBarTitle(text="Transfer Dashboard"))
+        root_box.add_widget(self.toolbar)
         
-        # Content Area containing Split View (Top Config, Bottom Status)
-        # We put this in a BoxLayout to manage the share (60% / 40%)
-        content_split = MDBoxLayout(orientation='vertical', spacing=10, padding=0)
+        # Content Split
+        content_split = MDBoxLayout(orientation='vertical', spacing="10dp", padding=0)
         
-        # --- TOP SECTION: CONFIG (Weight 7) ---
+        # --- TOP CONFIG ---
         top_scroll = MDScrollView(size_hint_y=0.7)
-        top_content = MDBoxLayout(orientation='vertical', padding=20, spacing=15, adaptive_height=True)
+        top_content = MDBoxLayout(orientation='vertical', padding="20dp", spacing="15dp", adaptive_height=True)
         
         # Title
-        top_content.add_widget(MDLabel(text="New Task", font_style="H6", theme_text_color="Primary", adaptive_height=True))
+        top_content.add_widget(MDLabel(text="New Task", font_style="Title", role="large", adaptive_height=True))
         
-        # Fields with Paste
-        top_content.add_widget(self.create_input_with_paste("Source Channel (ID or Link)", "source_field"))
-        top_content.add_widget(self.create_input_with_paste("Target Channel (ID or Link)", "target_field"))
+        # Inputs
+        self.source_field = self.create_input_with_paste("Source Channel (ID/Link)", "source_field")
+        top_content.add_widget(self.source_field)
+        
+        self.target_field = self.create_input_with_paste("Target Channel (ID/Link)", "target_field")
+        top_content.add_widget(self.target_field)
         
         # Options Row
-        grid = MDGridLayout(cols=2, spacing=10, adaptive_height=True)
-        self.start_id_field = MDTextField(hint_text="Start ID (0=Oldest)", text="0", input_filter="int", mode="rectangle")
+        grid = MDGridLayout(cols=2, spacing="10dp", adaptive_height=True)
+        
+        # Start ID
+        self.start_id_field = MDTextField(
+            MDTextFieldHintText(text="Start ID (0=Oldest)"),
+            mode="outlined",
+        )
         grid.add_widget(self.start_id_field)
         
-        # URL Shortener Button
-        shorten_btn = MDIconButton(icon="link-variant-plus")
-        shorten_btn.bind(on_release=self.shorten_links)
-        grid.add_widget(shorten_btn)
+        # Shortener
+        short_btn = MDIconButton(icon="link-variant-plus")
+        short_btn.bind(on_release=self.shorten_links)
+        grid.add_widget(short_btn)
+        
         top_content.add_widget(grid)
         
-        # Transfer Mode Header
-        top_content.add_widget(MDLabel(text="Transfer Mode:", font_style="Subtitle2", adaptive_height=True))
+        # Mode Logic (Radio)
+        top_content.add_widget(MDLabel(text="Transfer Mode:", font_style="Label", role="large", adaptive_height=True))
         
-        # Transfer Mode Selector (Radio Buttons effect)
-        self.mode_checks = {}
-        modes_layout = MDGridLayout(cols=3, adaptive_height=True, spacing=5)
-        modes = [("Forward", "forward"), ("Copy (No Credit)", "copy"), ("Download & Upload", "download_upload")]
-        
-        # Default to 'copy'
+        self.mode_group = "transfer_mode"
+        modes = [("Forward", "forward"), ("Copy", "copy"), ("Down/Up", "download_upload")]
         self.selected_mode = "copy"
         
-        for label, value in modes:
+        modes_grid = MDGridLayout(cols=3, adaptive_height=True, spacing="5dp")
+        for label, val in modes:
             box = MDBoxLayout(adaptive_height=True)
-            chk = MDCheckbox(group="mode", size_hint=(None, None), size=("30dp", "30dp"))
-            if value == "copy": chk.active = True
-            
-            chk.bind(active=lambda instance, val, v=value: self.set_mode(v, val))
-            
+            chk = MDCheckbox(group=self.mode_group, size_hint=(None, None), size=("30dp","30dp"))
+            if val == "copy": chk.active = True
+            chk.bind(active=lambda inst, act, v=val: self.set_mode(v, act))
             box.add_widget(chk)
-            box.add_widget(MDLabel(text=label, font_style="Caption", adaptive_height=True, pos_hint={"center_y": .5}))
-            modes_layout.add_widget(box)
-            
-        top_content.add_widget(modes_layout)
+            box.add_widget(MDLabel(text=label, font_style="Label", role="medium"))
+            modes_grid.add_widget(box)
+        top_content.add_widget(modes_grid)
 
-        # Accounts Header
-        top_content.add_widget(MDLabel(text="Select Accounts:", font_style="Subtitle2", adaptive_height=True))
-        self.accounts_grid = MDGridLayout(cols=1, adaptive_height=True, spacing=5)
+        # Accounts
+        top_content.add_widget(MDLabel(text="Select Accounts:", font_style="Label", role="large", adaptive_height=True))
+        self.accounts_grid = MDGridLayout(cols=1, adaptive_height=True, spacing="5dp")
         top_content.add_widget(self.accounts_grid)
         
-        # File Types Header
-        top_content.add_widget(MDLabel(text="File Types:", font_style="Subtitle2", adaptive_height=True))
-        types_layout = MDGridLayout(cols=3, adaptive_height=True, spacing=5)
-        file_types = ["Images", "Videos", "Audio", "Documents", "Text"]
-        for ftype in file_types:
+        # Files
+        top_content.add_widget(MDLabel(text="File Types:", font_style="Label", role="large", adaptive_height=True))
+        files_grid = MDGridLayout(cols=3, adaptive_height=True, spacing="5dp")
+        types = ["Images", "Videos", "Audio", "Documents", "Text"]
+        for t in types:
             box = MDBoxLayout(adaptive_height=True)
-            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp", "30dp"))
-            self.type_checks[ftype.lower()] = chk
+            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp","30dp"))
+            self.type_checks[t.lower()] = chk
             box.add_widget(chk)
-            box.add_widget(MDLabel(text=ftype, font_style="Caption", adaptive_height=True, pos_hint={"center_y": .5}))
-            types_layout.add_widget(box)
-        top_content.add_widget(types_layout)
+            box.add_widget(MDLabel(text=t, font_style="Label", role="small"))
+            files_grid.add_widget(box)
+        top_content.add_widget(files_grid)
         
-        # Spacer
-        top_content.add_widget(Widget(size_hint_y=None, height="10dp"))
-        
-        # Start Button (Centered)
-        self.start_btn = MDRaisedButton(
-            text="🚀 START NEW TASK", 
-            size_hint_x=0.9, 
-            pos_hint={"center_x": 0.5},
-            md_bg_color=(0, 0.7, 0, 1)
-        )
-        self.start_btn.bind(on_release=self.start_transfer)
-        top_content.add_widget(self.start_btn)
+        # Start Button
+        start_btn = MDButton(style="filled", pos_hint={"center_x": .5})
+        start_btn.add_widget(MDButtonText(text="START NEW TASK"))
+        start_btn.bind(on_release=self.start_transfer)
+        top_content.add_widget(start_btn)
         
         top_scroll.add_widget(top_content)
         content_split.add_widget(top_scroll)
         
-        # --- BOTTOM SECTION: LIST (Weight 3) ---
-        header_box = MDBoxLayout(adaptive_height=True, padding=[20, 5], md_bg_color=(0.95,0.95,0.95,1))
-        header_box.add_widget(MDLabel(text="Active Tasks", font_style="Subtitle1", bold=True))
-        content_split.add_widget(header_box)
+        # --- BOTTOM STATUS ---
+        header = MDBoxLayout(adaptive_height=True, padding=["20dp", "5dp"])
+        header.add_widget(MDLabel(text="Active Tasks", font_style="Title", role="medium"))
+        content_split.add_widget(header)
         
         bottom_scroll = MDScrollView(size_hint_y=0.3)
         self.tasks_list = MDList()
         bottom_scroll.add_widget(self.tasks_list)
         content_split.add_widget(bottom_scroll)
         
-        # Add content split to root
         root_box.add_widget(content_split)
-        
         self.add_widget(root_box)
 
+    def set_mode(self, val, active):
+        if active: self.selected_mode = val
+
     def refresh_accounts(self):
-        """Refresh account list checkboxes"""
-        from kivymd.uix.selectioncontrol import MDCheckbox
         self.accounts_grid.clear_widgets()
         self.account_checks.clear()
         
         accounts = self.account_manager.get_connected_accounts()
         if not accounts:
-            self.accounts_grid.add_widget(MDLabel(text="No accounts!", theme_text_color="Error"))
+            self.accounts_grid.add_widget(MDLabel(text="No connected accounts!", theme_text_color="Error"))
             return
 
         for acc in accounts:
             box = MDBoxLayout(adaptive_height=True, height="40dp")
-            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp", "30dp"))
+            chk = MDCheckbox(active=True, size_hint=(None, None), size=("30dp","30dp"))
             self.account_checks[acc['id']] = chk
             box.add_widget(chk)
-            box.add_widget(MDLabel(text=f"{acc['name']}"))
+            box.add_widget(MDLabel(text=f"{acc['name']} ({acc['phone']})"))
             self.accounts_grid.add_widget(box)
 
+    def create_input_with_paste(self, hint, field_ref_name, **kwargs):
+        field = MDTextField(
+            MDTextFieldHintText(text=hint),
+            mode="outlined",
+            **kwargs
+        )
+        paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
+        paste_icon.bind(on_release=lambda x: self.do_paste(field))
+        field.add_widget(paste_icon)
+        
+        setattr(self, field_ref_name, field)
+        return field
+
+    def do_paste(self, field):
+        field.text = Clipboard.paste()
+
+    def shorten_links(self, *args):
+        from ..utils.url_shortener import shorten_url
+        s = self.source_field.text
+        t = self.target_field.text
+        
+        if s and "http" in s:
+            self.source_field.text = shorten_url(s)
+            toast("Source shortened")
+        if t and "http" in t:
+            self.target_field.text = shorten_url(t)
+            toast("Target shortened")
+
+    def go_back(self, *args):
+        self.manager.current = 'action'
+
+    # --- TRANSFER LOGIC ---
     def start_transfer(self, *args):
-        """Start transfer logic"""
         source = self.source_field.text
         target = self.target_field.text
-        start_id = int(self.start_id_field.text or 0)
+        try:
+            start_id = int(self.start_id_field.text) if self.start_id_field.text else 0
+        except: start_id = 0
         
         if not source or not target:
-            return # TODO: Toast
+            toast("Source and Target required")
+            return
             
-        selected_accounts = [aid for aid, chk in self.account_checks.items() if chk.active]
-        if not selected_accounts: return
+        selected_accs = [aid for aid, c in self.account_checks.items() if c.active]
+        if not selected_accs:
+            toast("Select at least one account")
+            return
+            
+        session_id = f"task_{hex(int(time.time()))[2:]}"
         
-        selected_types = [t for t, chk in self.type_checks.items() if chk.active]
+        # Add UI Item
+        self.add_task_item(session_id)
+        
+        # Run
+        asyncio.create_task(self.run_transfer(session_id, selected_accs, source, target, start_id))
 
+    def add_task_item(self, session_id):
+        item = MDListItem(type="small")
+        headline = MDListItemHeadlineText(text=f"Task: {session_id}")
+        supporting = MDListItemSupportingText(text="Initializing...")
+        
+        item.add_widget(headline)
+        item.add_widget(supporting)
+        
+        self.tasks_list.add_widget(item)
+        self.tasks_map[session_id] = supporting
+
+    def update_task_status(self, session_id, text):
+        if session_id in self.tasks_map:
+            self.tasks_map[session_id].text = text
+
+    async def run_transfer(self, session_id, account_ids, source, target, start_id):
+        self.update_task_status(session_id, "Connecting accounts...")
+        
+        clients = []
+        for aid in account_ids:
+            client = await self.account_manager.get_client(aid)
+            if client: clients.append(client)
+            
+        if not clients:
+            self.update_task_status(session_id, "Failed: No clients")
+            return
+
+        # Prepare config
         config = {
             'source': source,
             'target': target,
-            'accounts': selected_accounts,
             'start_id': start_id,
-            'file_types': selected_types,
-            'mode': self.selected_mode
+            'file_types': [k for k,v in self.type_checks.items() if v.active]
         }
         
-        # Create Session in Manager
-        session_id = self.transfer_manager.create_transfer(config)
+        # Register session
+        self.transfer_manager.create_session(session_id, config)
         
-        # Add to List UI
-        self.add_task_to_list(session_id, source, target)
+        self.update_task_status(session_id, "Starting transfer...")
         
-        # Start Async
-        self.source_field.text = "" # Clear form
-        import asyncio
-        asyncio.create_task(self._run_transfer(session_id, config))
-
-    def add_task_to_list(self, session_id, source, target):
-        from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget, IconRightWidget
-        
-        item = TwoLineAvatarIconListItem(
-            text=f"Task: {source} -> {target}",
-            secondary_text="Initializing...",
-            id=session_id
-        )
-        icon = IconLeftWidget(icon="transfer")
-        item.add_widget(icon)
-        
-        # Stop Button
-        # Note: Ideally needs better binding, simplified here
-        # right_icon = IconRightWidget(icon="stop", on_release=lambda x: self.stop_task(session_id, item))
-        # item.add_widget(right_icon)
-        
-        self.tasks_list.add_widget(item)
-
-    async def _run_transfer(self, session_id, config):
-        """Async runner"""
         try:
-            # Get only selected clients
-            clients = []
-            for acc_id in config['accounts']:
-                client = self.account_manager.get_client(acc_id)
-                if client: clients.append(client)
-            
-            # Start Manager Logic
             await self.transfer_manager.start_mass_transfer(
-                session_id,
-                clients, 
-                self.update_task_status
+                session_id, clients, self.update_task_status
             )
-            
+            self.update_task_status(session_id, "Completed")
         except Exception as e:
-            logger.error(f"Transfer failed: {e}")
+            logger.error(f"Transfer Error: {e}")
             self.update_task_status(session_id, f"Error: {e}")
-
-    def update_task_status(self, session_id, text):
-        """Find the list item and update text"""
-        # Linear search for now (simple)
-        for child in self.tasks_list.children:
-            if getattr(child, 'id', None) == session_id:
-                child.secondary_text = text
-                if "Completed" in text or "Error" in text:
-                    child.tertiary_text = "Done" # If ThreeLine
-                break
-
-    def stop_transfer(self, *args):
-        pass # Per task now
-
-    def set_mode(self, value, is_active):
-        """Update selected mode"""
-        if is_active:
-            self.selected_mode = value
-            logger.info(f"Selected transfer mode: {value}")
-
-    def shorten_links(self, *args):
-        """Shorten source and target links"""
-        from ..utils.url_shortener import shorten_url
-        from kivymd.toast import toast
-        
-        s_text = self.source_field.text
-        t_text = self.target_field.text
-        
-        if s_text and "http" in s_text:
-            new_s = shorten_url(s_text)
-            self.source_field.text = new_s
-            toast("Source URL Shortened")
-            
-        if t_text and "http" in t_text:
-            new_t = shorten_url(t_text)
-            self.target_field.text = new_t
-            toast("Target URL Shortened")
-
-    def create_input_with_paste(self, hint, field_ref_name, **kwargs):
-        """Helper to create text field with a paste button"""
-        from kivymd.uix.textfield import MDTextField
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.button import MDIconButton
-        layout = MDBoxLayout(spacing="4dp", adaptive_height=True)
-        field = MDTextField(hint_text=hint, mode="rectangle", **kwargs)
-        setattr(self, field_ref_name, field)
-        layout.add_widget(field)
-        paste_btn = MDIconButton(icon="content-paste", pos_hint={"center_y": 0.5})
-        paste_btn.bind(on_release=lambda x: self.do_paste(field))
-        layout.add_widget(paste_btn)
-        return layout
-
-    def do_paste(self, field):
-        """Perform paste from clipboard"""
-        from kivy.core.clipboard import Clipboard
-        field.text = Clipboard.paste()
-
-    def go_back(self):
-        self.manager.current = 'action'

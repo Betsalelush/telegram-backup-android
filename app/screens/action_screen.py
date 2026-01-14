@@ -4,37 +4,32 @@ Main menu for selecting actions
 """
 from kivy.uix.screenmanager import Screen
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDRaisedButton
+from kivymd.uix.button import MDButton, MDButtonText, MDButtonIcon
 from kivymd.uix.label import MDLabel
+from kivy.uix.widget import Widget
 
 from ..utils.logger import logger, add_breadcrumb
 
 
 class ActionScreen(Screen):
     """
-    Main action selection screen
-    
-    Features:
-    - Manage Accounts
-    - Transfer Console
-    - Live Logs
+    Main action selection screen (KivyMD 2.0.0)
     """
     
     def __init__(self, **kwargs):
-        """Initialize Action Screen"""
         super().__init__(**kwargs)
         self.build_ui()
         add_breadcrumb("ActionScreen initialized")
     
     def build_ui(self):
         """Build screen UI"""
-        from kivy.uix.widget import Widget
+        self.clear_widgets()
 
         # Main layout with centering
         layout = MDBoxLayout(
             orientation='vertical',
-            padding=30,
-            spacing=40,
+            padding="30dp",
+            spacing="40dp",
             pos_hint={"center_x": 0.5, "center_y": 0.5},
             adaptive_height=True
         )
@@ -43,10 +38,11 @@ class ActionScreen(Screen):
         title = MDLabel(
             text="Telegram Backup",
             halign="center",
-            font_style="H4",
+            font_style="Display", # H4 is DisplaySmall/Medium in MD3
+            role="medium",
             theme_text_color="Primary",
             size_hint_y=None,
-            height=120
+            height="120dp"
         )
         layout.add_widget(title)
         
@@ -58,14 +54,19 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            btn = MDRaisedButton(
-                text=text,
-                size_hint=(0.9, None),
-                height=80,
+            btn = MDButton(
+                style="filled",
                 pos_hint={"center_x": 0.5},
-                elevation=3,
-                font_size="20sp"
             )
+            # MDButton in 2.0.0 uses sizing differently.
+            # To set fixed width, use size_hint_x=None + width
+            # But let's use adaptive
+            
+            if icon:
+                btn.add_widget(MDButtonIcon(icon=icon))
+            
+            btn.add_widget(MDButtonText(text=text))
+            
             btn.bind(on_release=lambda x, s=screen: self.navigate_to(s))
             layout.add_widget(btn)
 
@@ -78,7 +79,6 @@ class ActionScreen(Screen):
         self.add_widget(container)
     
     def navigate_to(self, screen_name: str):
-        """Navigate to screen"""
         logger.info(f"Navigating to: {screen_name}")
         add_breadcrumb("Navigation", {"to": screen_name})
         self.manager.current = screen_name
