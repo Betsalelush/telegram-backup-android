@@ -95,11 +95,18 @@ class ActionScreen(Screen):
                 size_hint=(None, None),  # Fixed size for consistent look
                 width="320dp",  # Wide like the example
                 height="56dp",  # Slightly taller
+                theme_radius="Custom",  # Enable custom radius in KivyMD 2.0
             )
             
-            # Set radius AFTER creation for KivyMD 2.0 compatibility
-            # Stadium shape: radius = height/2 = 56/2 = 28
-            btn.radius = 28  # Single value for all corners
+            # Force stadium shape - must be set AFTER widget creation
+            # Use Kivy Clock to ensure it's applied after the widget is rendered
+            from kivy.clock import Clock
+            def set_radius(dt, button=btn):
+                button.radius = [28, 28, 28, 28]
+                # Also try setting _radius for internal use
+                if hasattr(button, '_radius'):
+                    button._radius = 28
+            Clock.schedule_once(lambda dt: set_radius(dt, btn), 0)
             
             # Content
             if icon:
