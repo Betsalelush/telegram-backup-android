@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from typing import List, Dict, Optional
 from telethon import TelegramClient
+from telethon.sessions import MemorySession
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 
 from ..config import Config
@@ -220,7 +221,7 @@ class AccountManager:
             client = self.clients.get(account_id)
             if not client or not client.is_connected():
                 client = TelegramClient(
-                    account['session_path'],
+                    MemorySession(),
                     int(account['api_id']),
                     account['api_hash']
                 )
