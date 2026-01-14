@@ -208,7 +208,11 @@ class TransferScreen(Screen):
             **kwargs
         )
         paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        paste_icon.bind(on_press=lambda x: self.do_paste(field))
+        def handle_paste_click(instance, touch):
+            if instance.collide_point(*touch.pos):
+                self.do_paste(field)
+                return True
+        paste_icon.bind(on_touch_down=handle_paste_click)
         field.add_widget(paste_icon)
         
         setattr(self, field_ref_name, field)
