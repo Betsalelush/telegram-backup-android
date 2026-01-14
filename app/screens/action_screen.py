@@ -66,11 +66,26 @@ class ActionScreen(Screen):
         
         for text, screen, icon in buttons:
             btn = MDButton(
-                style="filled",
+                style="filled", 
+                # In MD 2.0.0 'filled' uses primary color background.
+                # To get rectangular:
+                radius=[4, 4, 4, 4], 
                 pos_hint={"center_x": 0.5},
                 size_hint_x=0.7, 
                 height="64dp"
             )
+            # Center content in button
+            # Note: MD3 buttons auto-handle contrast if using standard styles.
+            # But user reported confusion.
+            # In Dark Mode: Primary color (Lavender) usually has black text.
+            # User wants White text on Black? Or just standard contrast?
+            # "When Dark: Buttons should be White on Black? Or lavender"
+            # It seems user sees Lavender circle with text outside.
+            # MDButton behaves like a container.
+            
+            # Let's try 'outlined' style for high contrast or stay 'filled' but ensure radius is small.
+            # User wants: "Rectangular, not round".
+            
             # Center content in button
             
             if icon:
@@ -101,10 +116,12 @@ class ActionScreen(Screen):
         app = MDApp.get_running_app()
         if app.theme_cls.theme_style == "Dark":
             app.theme_cls.theme_style = "Light"
-            app.theme_cls.primary_palette = "Blue" # Blue looks better in Light
+            app.theme_cls.primary_palette = "White" # White background? No, palette defines accent.
+            # Let's try keeping palette neutral or high contrast to black.
+            app.theme_cls.primary_palette = "Gray" 
         else:
             app.theme_cls.theme_style = "Dark"
-            app.theme_cls.primary_palette = "Lavender" # Lavender looks better in Dark
+            app.theme_cls.primary_palette = "Lavender" 
     
     def navigate_to(self, screen_name: str):
         logger.info(f"Navigating to: {screen_name}")
