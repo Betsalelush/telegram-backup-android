@@ -179,7 +179,7 @@ class AccountManager:
         try:
             # Create client
             client = TelegramClient(
-                account['session_path'],
+                MemorySession(),
                 int(account['api_id']),
                 account['api_hash']
             )
@@ -277,7 +277,7 @@ class AccountManager:
         try:
             # Create client
             client = TelegramClient(
-                account['session_path'],
+                MemorySession(),
                 int(account['api_id']),
                 account['api_hash']
             )
