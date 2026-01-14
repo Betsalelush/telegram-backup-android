@@ -95,8 +95,11 @@ class ActionScreen(Screen):
                 size_hint=(None, None),  # Fixed size for consistent look
                 width="320dp",  # Wide like the example
                 height="56dp",  # Slightly taller
-                radius=[28, 28, 28, 28],  # Half of height for perfect stadium shape
             )
+            
+            # Set radius AFTER creation for KivyMD 2.0 compatibility
+            # Stadium shape: radius = height/2 = 56/2 = 28
+            btn.radius = 28  # Single value for all corners
             
             # Content
             if icon:
