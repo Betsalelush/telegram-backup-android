@@ -149,18 +149,24 @@ class AccountsScreen(Screen):
         )
         
         # Trailing paste icon
-        # Trailing paste icon
         paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        # Ensure correct binding. Using lambda might be capturing late?
-        # Let's bind directly to a method that handles it.
-        paste_icon.bind(on_release=lambda x, f=field: self.do_paste(f))
+        # Use on_press instead of on_release - works better in KivyMD 2.0
+        paste_icon.bind(on_press=lambda x: self.do_paste(field))
         field.add_widget(paste_icon)
         
         setattr(self, field_ref_name, field)
         return field
 
     def do_paste(self, field):
-        field.text = Clipboard.paste()
+        """Paste from clipboard to field"""
+        try:
+            text = Clipboard.paste()
+            if text:
+                field.text = text
+                toast("Pasted!")
+        except Exception as e:
+            logger.error(f"Paste error: {e}")
+            toast("Paste failed")
 
     # --- LIST LOADING ---
     def load_accounts_list(self):

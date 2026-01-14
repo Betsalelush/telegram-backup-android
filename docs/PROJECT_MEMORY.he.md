@@ -78,7 +78,88 @@ telegram-backup-android/
 
 ---
 
-## 5. 📝 משימות להמשך (Todo)
+## 5. 🚀 תהליך בנייה ופריסה (CI/CD)
+
+### GitHub Actions - בנייה אוטומטית
+האפליקציה נבנית אוטומטית באמצעות GitHub Actions.
+
+**קובץ Workflow:** `.github/workflows/build-apk.yml`
+
+#### טריגרים:
+- ✅ **Push ל-master** - כל push מפעיל בנייה אוטומטית
+- ✅ **הפעלה ידנית** - דרך GitHub UI (`workflow_dispatch`)
+
+#### תהליך הבנייה:
+1. 📥 משיכת קוד מ-Repository
+2. 🐳 הרצת Buildozer ב-Docker Container (Kivy Official Image)
+3. 🔨 בנייה של APK (Android Debug)
+4. 📤 העלאת APK כ-Artifact (שמור 30 יום)
+5. 📋 במקרה של כשלון - העלאת לוג הבנייה
+
+#### הורדת APK:
+1. לך ל-**GitHub Actions** tab
+2. בחר את ה-Run האחרון
+3. גלול ל-**Artifacts** → הורד `telegram-backup-v3.0-apk`
+
+---
+
+## 6. 🔧 כלי ניפוי באגים (Debug Tools)
+
+התיקייה `debug_tools/` מכילה **19 סקריפטים** לניפוי ובדיקת שגיאות.
+
+⚠️ **אזהרת אבטחה:** הקבצים מכילים **API Tokens** (GitHub, Sentry) ולכן התיקייה ב-`.gitignore`.
+
+### 🔴 כלי Sentry (5 סקריפטים):
+- `check_sentry_logs.py` - בדיקה בסיסית של שגיאות
+- `fetch_sentry_comprehensive.py` - ניתוח מקיף ומפורט
+- `fetch_sentry_debug.py` - דיבוג issues ספציפיים
+- `fetch_sentry_trace.py` - משיכת stack traces
+- `fetch_sentry_trace_v2.py` - גרסה משודרגת
+
+### 🟢 כלי GitHub (4 סקריפטים):
+- `check_artifacts_api.py` - בדיקת APK artifacts
+- `check_github_logs.py` - לוגים מ-GitHub Actions
+- `debug_gh_api.py` - דיבוג workflows
+- `fetch_gh_logs.py` - משיכת לוגים מפורטת
+
+### 🔵 כלי נוספים:
+- `test_app_integrity.py` - בדיקת תקינות קבצים
+- `verify_changes.py` - אימות שינויים
+- `syntax_check.py` - בדיקת תחביר Python
+
+**שימוש:** הרץ את הסקריפט הרלוונטי כשצריך לבדוק שגיאות או סטטוס בנייה.
+
+---
+
+## 7. 📦 תהליך עדכון גרסה
+
+כאשר מוכנים לשחרר גרסה חדשה:
+
+### שלב 1: עדכון מספר גרסה
+עדכן ב-**3 מקומות**:
+1. `buildozer.spec` → שדה `version`
+2. `.github/workflows/build-apk.yml` → שם ה-Artifact
+3. `docs/PROJECT_MEMORY.he.md` → גרסה נוכחית (בראש)
+
+### שלב 2: Commit ו-Push
+```bash
+git add .
+git commit -m "Release v3.2: [תיאור השינויים]"
+git push origin master
+```
+
+### שלב 3: בנייה אוטומטית
+- GitHub Actions יבנה את ה-APK אוטומטית
+- זמן בנייה: ~5-10 דקות (עם cache)
+
+### שלב 4: הורדה ובדיקה
+- הורד את ה-APK מ-Artifacts
+- התקן על מכשיר פיזי
+- בדוק פונקציונליות
+
+---
+
+## 8. 📝 משימות להמשך (Todo)
 1.  [ ] **בדיקה פיזית:** התקנת ה-APK על מכשיר אנדרואיד אמיתי ואימות כל הפיצ'רים (במיוחד הרשאות כתיבה לאחסון).
 2.  [ ] **בדיקת ביצועים:** העברת כמות גדולה של הודעות (1000+) לבדיקת יציבות זיכרון.
 3.  [ ] **QR Login:** שיפור הממשק להצגת קוד ה-QR (כרגע מודפס ללוג או מוצג בסיסי).

@@ -169,13 +169,21 @@ class DownloadScreen(Screen):
             **kwargs
         )
         paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        paste_icon.bind(on_release=lambda x, f=field: self.do_paste(f))
+        paste_icon.bind(on_press=lambda x: self.do_paste(field))
         field.add_widget(paste_icon)
         setattr(self, field_ref_name, field)
         return field
 
     def do_paste(self, field):
-        field.text = Clipboard.paste()
+        """Paste from clipboard"""
+        try:
+            text = Clipboard.paste()
+            if text:
+                field.text = text
+                toast("Pasted!")
+        except Exception as e:
+            logger.error(f"Paste error: {e}")
+            toast("Paste failed")
 
     def go_back(self, *args):
         self.manager.current = 'action'

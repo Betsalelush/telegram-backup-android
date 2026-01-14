@@ -86,16 +86,16 @@ class ActionScreen(Screen):
         ]
         
         for text, screen, icon in buttons:
-            # Stadium Shape (Sausage)
-            # Height: 54dp
-            # Radius: 27dp (half of height)
+            # Stadium Shape (Wide Sausage) - like image 2
+            # Make it WIDER and taller for better visibility
             
             btn = MDButton(
                 style="filled",
                 pos_hint={"center_x": 0.5},
-                size_hint_x=0.85, 
-                height="54dp",
-                radius=[27, 27, 27, 27],
+                size_hint=(None, None),  # Fixed size for consistent look
+                width="320dp",  # Wide like the example
+                height="56dp",  # Slightly taller
+                radius=[28, 28, 28, 28],  # Half of height for perfect stadium shape
             )
             
             # Content
@@ -108,7 +108,7 @@ class ActionScreen(Screen):
             btn.add_widget(MDButtonText(
                 text=text, 
                 pos_hint={"center_y": .5},
-                font_style="Label", # Using Label instead of Title for better fit
+                font_style="Title",  # Larger font
                 role="large",
             ))
             
