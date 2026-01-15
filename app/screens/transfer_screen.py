@@ -36,7 +36,7 @@ from kivymd.toast import toast
 from ..managers.transfer_manager import TransferManager
 from ..managers.account_manager import AccountManager
 from ..managers.progress_manager import ProgressManager
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_message
 
 
 class TransferScreen(Screen):
@@ -216,6 +216,7 @@ class TransferScreen(Screen):
 
     def do_paste(self, field):
         """Paste from clipboard with Android support"""
+        capture_message("Paste button clicked", level="info")
         try:
             # Try Android clipboard first (for pyjnius)
             try:

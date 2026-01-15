@@ -56,6 +56,25 @@ def add_breadcrumb(message: str, data: dict = None):
         logger.error(f"Failed to add breadcrumb: {e}")
 
 
+def capture_message(message: str, level: str = "info", extra: dict = None):
+    """
+    Send a message to Sentry (visible even without errors)
+    
+    Args:
+        message: Message to send
+        level: Severity level (debug, info, warning, error)
+        extra: Additional context data
+    """
+    try:
+        with sentry_sdk.push_scope() as scope:
+            if extra:
+                for key, value in extra.items():
+                    scope.set_extra(key, value)
+            sentry_sdk.capture_message(message, level=level)
+    except Exception as e:
+        logger.error(f"Failed to capture message: {e}")
+
+
 def set_user_context(user_id: str, phone: str = None):
     """
     Set user context in Sentry
