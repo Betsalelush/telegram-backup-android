@@ -9,7 +9,7 @@ from kivymd.uix.label import MDLabel
 from kivy.uix.widget import Widget
 from kivymd.app import MDApp
 
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_message
 
 
 class ActionScreen(Screen):
@@ -23,6 +23,7 @@ class ActionScreen(Screen):
         add_breadcrumb("ActionScreen initialized")
 
     def on_enter(self, *args):
+        capture_message("User entered Action screen", level="info")
         # Ensure background is updated when entering screen
         app = MDApp.get_running_app()
         if hasattr(self, 'root_container'):
@@ -145,4 +146,5 @@ class ActionScreen(Screen):
     def navigate_to(self, screen_name: str):
         logger.info(f"Navigating to: {screen_name}")
         add_breadcrumb("Navigation", {"to": screen_name})
+        capture_message(f"User navigated to {screen_name}", level="info")
         self.manager.current = screen_name

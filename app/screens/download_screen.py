@@ -31,7 +31,7 @@ from kivymd.uix.appbar import (
 from kivymd.toast import toast
 
 from ..managers.download_manager import DownloadManager
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_message
 
 
 class DownloadScreen(Screen):
@@ -176,6 +176,7 @@ class DownloadScreen(Screen):
 
     def do_paste(self, field):
         """Paste from clipboard with Android support"""
+        capture_message("Paste button clicked (download)", level="info")
         try:
             # Try Android clipboard first
             try:

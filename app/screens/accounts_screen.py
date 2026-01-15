@@ -42,7 +42,7 @@ from kivymd.uix.appbar import (
 from kivymd.toast import toast
 
 from ..managers.account_manager import AccountManager
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_message
 
 
 class AccountsScreen(Screen):
@@ -158,6 +158,7 @@ class AccountsScreen(Screen):
 
     def do_paste(self, field):
         """Paste from clipboard with Android support"""
+        capture_message("Paste button clicked (accounts)", level="info")
         try:
             # Try Android clipboard first
             try:
