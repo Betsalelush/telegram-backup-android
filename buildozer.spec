@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 source.exclude_dirs = maxuser, tests, bin, .buildozer, .git, __pycache__, .github, node_modules, .idea, .vscode
 source.exclude_patterns = license,images/*/*.jpg,check_*.py,fetch_*.py,test_*.py,syntax_check.py,scan_encoding.py,read_head.py
-version = 3.4
+version = 3.5
 
 requirements = python3,kivy==2.3.0,https://github.com/kivymd/KivyMD/archive/master.zip,materialyoucolor,exceptiongroup,asyncgui,asynckivy,telethon==1.36.0,sentry-sdk==1.40.0,pyjnius==1.6.1,requests,pyaes,rsa,pyasn1,pyshorteners,pillow
 

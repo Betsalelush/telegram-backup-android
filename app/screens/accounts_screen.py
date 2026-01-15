@@ -271,7 +271,9 @@ class AccountsScreen(Screen):
         if self.account_manager.global_api_id:
             content.add_widget(MDLabel(
                 text="* Using Global API credentials", 
-                theme_text_color="Hint", font_style="Caption"
+                theme_text_color="Hint", 
+                font_style="Label",
+                role="small"
             ))
             
         self.dialog.add_widget(content)

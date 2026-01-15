@@ -2,14 +2,29 @@
 Main entry point for the application
 Imports from app package
 """
+import os
 import sys
 import logging
 import traceback
 import time
 
+# Set Kivy environment variables BEFORE importing Kivy
+# This prevents Kivy from trying to write files and causing permission errors
+os.environ['KIVY_NO_FILELOG'] = '1'  # Disable file logging
+os.environ['KIVY_NO_CONSOLELOG'] = '1'  # Disable console logging (we use our own)
+os.environ['KIVY_LOG_MODE'] = 'PYTHON'  # Use Python logging instead
+
 # Configure basic logging first as fallback
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("Launcher")
+
+# Apply Kivy initialization patches to prevent file errors
+try:
+    from app.utils.kivy_init import suppress_kivy_file_errors
+    suppress_kivy_file_errors()
+    logger.info("Kivy file error suppression applied")
+except Exception as e:
+    logger.warning(f"Could not apply Kivy patches: {e}")
 
 # Initialize Sentry immediately to capture startup/import errors
 try:

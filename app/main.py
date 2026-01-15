@@ -3,6 +3,11 @@ Main Application Entry Point
 Telegram Backup Android App v3.0
 """
 import os
+import warnings
+
+# Suppress Kivy file-related warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='kivy')
+
 from kivy.uix.screenmanager import ScreenManager
 from kivy.core.window import Window
 from kivymd.app import MDApp
