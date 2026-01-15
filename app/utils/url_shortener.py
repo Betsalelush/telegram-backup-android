@@ -3,7 +3,7 @@ URL Shortener Utility
 Based on pyshorteners with fallbacks
 """
 import pyshorteners
-from .logger import logger
+from .logger import logger, capture_exception
 
 def shorten_url(long_url: str) -> str:
     """
@@ -23,6 +23,7 @@ def shorten_url(long_url: str) -> str:
         
     except Exception as e:
         logger.warning(f"TinyURL failed: {e}. Trying Bitly...")
+        capture_exception(e, extra_data={"url": long_url, "service": "tinyurl"})
         try:
             # Note: Bitly usually requires API key in pyshorteners, 
             # but lo.py implies it might worth a try or maybe clckru/dagd etc.
@@ -33,4 +34,5 @@ def shorten_url(long_url: str) -> str:
             return short_url
         except Exception as e2:
             logger.error(f"Failed to shorten URL: {e2}")
+            capture_exception(e2, extra_data={"url": long_url, "service": "clckru", "original_error": str(e)})
             return long_url

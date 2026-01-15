@@ -8,7 +8,12 @@ import os
 class Config:
     """Application configuration"""
     
-    # Sentry
+    # Sentry Configuration
+    # To enable Sentry error tracking, set the SENTRY_DSN environment variable:
+    # Example: export SENTRY_DSN="https://<key>@<org>.ingest.sentry.io/<project>"
+    # Get your DSN from: https://sentry.io/settings/<org>/projects/<project>/keys/
+    # Note: The token provided (51147bc0eec811f0b99a065cb2cd158a) is an API auth token,
+    # not a DSN. Use it for API calls (check_sentry_logs.py), not for error reporting.
     SENTRY_DSN = os.getenv("SENTRY_DSN", "")
     SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_SAMPLE_RATE", "1.0"))
     SENTRY_ENVIRONMENT = os.getenv("APP_ENV", "production")

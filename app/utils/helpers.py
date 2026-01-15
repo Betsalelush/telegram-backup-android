@@ -7,9 +7,8 @@ from telethon import TelegramClient
 from telethon.tl.types import Channel, Chat
 
 
-from .logger import logger, add_breadcrumb
+from .logger import logger, add_breadcrumb, capture_exception
 import asyncio
-from sentry_logger import capture_exception
 
 def fire_and_forget(coro, context: str = ""):
     """
@@ -55,6 +54,7 @@ async def list_available_chats(client: TelegramClient) -> List[Dict]:
         
     except Exception as e:
         logger.error(f"Error listing chats: {e}")
+        capture_exception(e, extra_data={"context": "list_available_chats"})
         return []
 
 
@@ -219,6 +219,7 @@ async def download_media(client: TelegramClient, message,
             
     except Exception as e:
         logger.error(f"Error downloading media: {e}")
+        capture_exception(e, extra_data={"context": "download_media", "file_path": file_path})
         return None
 
 
@@ -249,4 +250,5 @@ async def upload_media(client: TelegramClient, target_entity,
         
     except Exception as e:
         logger.error(f"Error uploading media: {e}")
+        capture_exception(e, extra_data={"context": "upload_media"})
         return False

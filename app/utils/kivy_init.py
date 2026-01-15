@@ -9,6 +9,13 @@ import logging
 
 logger = logging.getLogger("KivyInit")
 
+# Import capture_exception if available (may not be available during early init)
+try:
+    from .logger import capture_exception
+except ImportError:
+    def capture_exception(e, extra_data=None):
+        pass  # Fallback if logger not available yet
+
 def suppress_kivy_file_errors():
     """
     Suppress Kivy file-related errors by patching shutil.copytree
@@ -34,6 +41,7 @@ def suppress_kivy_file_errors():
         
     except Exception as e:
         logger.error(f"Failed to patch shutil: {e}")
+        capture_exception(e, extra_data={"context": "kivy_init_patch"})
 
 
 def init_kivy_environment():

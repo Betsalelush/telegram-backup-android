@@ -51,6 +51,7 @@ class TelegramBackupApp(MDApp):
         
         # Initialize Sentry
         init_sentry()
+        add_breadcrumb("system", "Sentry initialized", "info")
         
         # Initialize managers
         self.account_manager = AccountManager(
