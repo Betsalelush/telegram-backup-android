@@ -16,8 +16,10 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
 # Configure logging
+# Configure logging
+# User requested only ERRORS in logs
 logging.basicConfig(
-    level=logging.DEBUG,  # Capture ALL logs including DEBUG
+    level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Sentry configuration with enhanced logging
 sentry_logging = LoggingIntegration(
-    level=logging.DEBUG,  # Capture DEBUG and above as breadcrumbs
+    level=logging.INFO,  # Capture INFO and above as breadcrumbs (reduced from DEBUG)
     event_level=logging.WARNING  # Send warnings and errors as events
 )
 
@@ -62,7 +64,7 @@ def add_breadcrumb(category, message, level='info', data=None):
         level=level,
         data=data or {}
     )
-    logger.info(f"[{category}] {message}")
+    # logger.info(f"[{category}] {message}") # Disabled to reduce noise
 
 def set_user_context(account_id=None, phone=None):
     """

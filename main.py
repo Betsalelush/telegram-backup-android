@@ -15,8 +15,14 @@ os.environ['KIVY_NO_CONSOLELOG'] = '1'  # Disable console logging (we use our ow
 os.environ['KIVY_LOG_MODE'] = 'PYTHON'  # Use Python logging instead
 
 # Configure basic logging first as fallback
-logging.basicConfig(level=logging.DEBUG)
+# User requested logs to show ONLY ERRORS
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("Launcher")
+logger.setLevel(logging.ERROR)
+
+# Silence specific libraries
+for log_name in ["kivy", "telethon", "asyncio", "urllib3", "KivyMD"]:
+    logging.getLogger(log_name).setLevel(logging.ERROR)
 
 # Apply Kivy initialization patches to prevent file errors
 try:

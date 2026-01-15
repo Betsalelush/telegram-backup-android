@@ -236,9 +236,12 @@ class AccountsScreen(Screen):
             )
             item.add_widget(supporting)
             
-            # Trailing Action
-            trailing = MDListItemTrailingIcon(icon="dots-vertical")
-            trailing.bind(on_release=lambda x, a=acc: self.show_account_options(a))
+            # Item click -> Options (Connect / Enter Code)
+            item.bind(on_release=lambda x, a=acc: self.show_account_options(a))
+
+            # Trailing Action -> Trash (Remove directly)
+            trailing = MDListItemTrailingIcon(icon="delete-outline")
+            trailing.bind(on_release=lambda x, a=acc: self.confirm_delete_account(a))
             item.add_widget(trailing)
             
             self.accounts_list.add_widget(item)
@@ -384,11 +387,7 @@ class AccountsScreen(Screen):
             btn_disc.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'disconnect'))
             content.add_widget(btn_disc)
         
-        # REMOVE
-        btn_del = MDButton(style="text", pos_hint={"center_x": .5})
-        btn_del.add_widget(MDButtonText(text="REMOVE FROM APP", theme_text_color="Error"))
-        btn_del.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'delete'))
-        content.add_widget(btn_del)
+        # Note: Delete is now via trash icon on the list item
         
         self.options_dialog.add_widget(content)
         self.options_dialog.open()
@@ -414,6 +413,29 @@ class AccountsScreen(Screen):
         await self.account_manager.disconnect_account(account_id)
         self.load_accounts_list()
         toast("Disconnected")
+
+    def confirm_delete_account(self, account):
+        acc_id = account['id']
+        
+        def on_confirm(*args):
+            self.account_manager.remove_account(acc_id)
+            self.load_accounts_list()
+            self.dialog.dismiss()
+            toast("Account Removed")
+
+        self.dialog = MDDialog()
+        self.dialog.add_widget(MDDialogHeadlineText(text="Remove Account?"))
+        self.dialog.add_widget(MDDialogSupportingText(text=f"Remove '{account.get('name')}' from this app?\nThis will log you out locally."))
+        
+        btns = MDDialogButtonContainer()
+        btns.add_widget(MDButton(style="text", on_release=lambda x: self.dialog.dismiss()).add_widget(MDButtonText(text="CANCEL")))
+        
+        del_btn = MDButton(style="text", on_release=on_confirm)
+        del_btn.add_widget(MDButtonText(text="REMOVE", theme_text_color="Error"))
+        btns.add_widget(del_btn)
+        
+        self.dialog.add_widget(btns)
+        self.dialog.open()
 
     # --- LOGIN LOGIC ---
 
