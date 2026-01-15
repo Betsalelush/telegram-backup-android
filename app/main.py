@@ -20,7 +20,7 @@ from app.screens.accounts_screen import AccountsScreen
 from app.screens.action_screen import ActionScreen
 from app.screens.transfer_screen import TransferScreen
 from app.screens.download_screen import DownloadScreen
-from app.screens.log_screen import LogScreen
+
 from app.utils.logger import logger, init_sentry, add_breadcrumb
 
 
@@ -85,7 +85,7 @@ class TelegramBackupApp(MDApp):
             account_manager=self.account_manager
         ))
         
-        sm.add_widget(LogScreen(name='logs'))
+
         
         logger.info("App initialized successfully")
         add_breadcrumb("App started")

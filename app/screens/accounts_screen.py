@@ -141,17 +141,13 @@ class AccountsScreen(Screen):
         self.manager.current = 'action'
 
     def create_input_with_paste(self, hint, field_ref_name, **kwargs):
-        """Helper to create MDTextField with paste support"""
+        """Standard MDTextField without paste button (removed by request)"""
         field = MDTextField(
             MDTextFieldHintText(text=hint),
             mode="outlined",
             **kwargs
         )
-        
-        # Trailing paste icon
-        paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        paste_icon.bind(on_release=lambda x: self.do_paste(field))
-        field.add_widget(paste_icon)
+        # Paste logic removed - native Android copy/paste is sufficient
         
         setattr(self, field_ref_name, field)
         return field
@@ -372,12 +368,14 @@ class AccountsScreen(Screen):
         btn_sms.add_widget(MDButtonText(text="CONNECT VIA SMS"))
         btn_sms.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'manual_connect'))
         content.add_widget(btn_sms)
-        
-        # QR
-        btn_qr = MDButton(style="filled", pos_hint={"center_x": .5})
-        btn_qr.add_widget(MDButtonText(text="CONNECT VIA QR"))
-        btn_qr.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'qr_connect'))
-        content.add_widget(btn_qr)
+
+        # Enter Code (Resume)
+        if not account.get('is_connected'):
+            btn_code = MDButton(style="tonal", pos_hint={"center_x": .5})
+            btn_code.add_widget(MDButtonText(text="ENTER CODE (RESUME)"))
+            btn_code.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'enter_code'))
+            content.add_widget(btn_code)
+
         
         # DISCONNECT (Log Out)
         if account.get('is_connected'):
@@ -401,6 +399,8 @@ class AccountsScreen(Screen):
         
         if action == 'manual_connect':
             asyncio.create_task(self._handle_manual_login(account_id))
+        elif action == 'enter_code':
+            self.show_code_dialog(account_id)
         elif action == 'qr_connect':
             asyncio.create_task(self._process_qr(account_id))
         elif action == 'disconnect':

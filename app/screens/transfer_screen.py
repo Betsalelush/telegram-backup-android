@@ -202,15 +202,12 @@ class TransferScreen(Screen):
             self.accounts_grid.add_widget(box)
 
     def create_input_with_paste(self, hint, field_ref_name, **kwargs):
+        # Using standard field without paste button
         field = MDTextField(
             MDTextFieldHintText(text=hint),
             mode="outlined",
             **kwargs
         )
-        paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        paste_icon.bind(on_release=lambda x: self.do_paste(field))
-        field.add_widget(paste_icon)
-        
         setattr(self, field_ref_name, field)
         return field
 

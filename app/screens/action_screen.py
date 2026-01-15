@@ -82,7 +82,6 @@ class ActionScreen(Screen):
             ("Manage Accounts", "accounts", "account-group"),
             ("Transfer Console", "transfer", "transfer"),
             ("Download Chat", "download", "download"),
-            ("Live Logs", "logs", "console-line"),
         ]
         
         for text, screen, icon in buttons:
