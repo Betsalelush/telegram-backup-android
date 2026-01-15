@@ -33,9 +33,11 @@ sentry_logging = LoggingIntegration(
     event_level=logging.WARNING  # Send warnings and errors as events
 )
 
+from app.config import Config
+
 sentry_sdk.init(
-    dsn="https://1f490b846ede82cfc3d5f6f5eb23263b@o4510215210598400.ingest.de.sentry.io/4510674676744272",
-    traces_sample_rate=1.0,  # 100% of transactions
+    dsn=Config.SENTRY_DSN,
+    traces_sample_rate=Config.SENTRY_TRACES_SAMPLE_RATE,
     profiles_sample_rate=1.0,  # 100% of profiles
     max_breadcrumbs=100,  # Keep last 100 breadcrumbs
     integrations=[sentry_logging],
@@ -46,6 +48,7 @@ sentry_sdk.init(
     attach_stacktrace=True,
     # Send default PII (personally identifiable information)
     send_default_pii=False,
+    environment=Config.SENTRY_ENVIRONMENT
 )
 
 def add_breadcrumb(category, message, level='info', data=None):

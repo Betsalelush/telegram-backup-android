@@ -75,7 +75,7 @@ def main():
                 import sentry_logger
                 sentry_logger.capture_exception(e, {"context": "startup_import_error"})
                 time.sleep(2)
-            except: pass
+            except Exception: pass
         sys.exit(1)
         
     except Exception as e:
@@ -86,7 +86,7 @@ def main():
                 import sentry_logger
                 sentry_logger.capture_exception(e, {"context": "startup_runtime_error"})
                 time.sleep(2)
-            except: pass
+            except Exception: pass
             
         # Emergency local log - Try to write to Downloads for visibility
         try:
@@ -106,8 +106,8 @@ def main():
                         f.write(error_msg)
                     logger.info(f"Crash log written to {path}")
                     break
-                except: continue
-        except: pass
+                except Exception: continue
+        except Exception: pass
         
         raise
 

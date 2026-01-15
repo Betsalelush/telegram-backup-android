@@ -5,7 +5,7 @@ Configure and run channel downloads
 import asyncio
 import time
 from kivy.uix.screenmanager import Screen
-from kivy.core.clipboard import Clipboard
+
 
 # KivyMD 2.0.0
 from kivymd.app import MDApp
@@ -172,40 +172,7 @@ class DownloadScreen(Screen):
         setattr(self, field_ref_name, field)
         return field
 
-    def do_paste(self, field):
-        """Paste from clipboard with Android support"""
-        capture_message("Paste button clicked (download)", level="info")
-        toast("מנסה להדביק...")
-        
-        # 1. Try Kivy's core clipboard first
-        try:
-            text = Clipboard.paste()
-            if text:
-                field.text = text
-                toast("הודבק!")
-                return
-        except: pass
 
-        # 2. Try Android Native Clipboard (Pyjnius)
-        try:
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            Context = autoclass('android.content.Context')
-            activity = PythonActivity.mActivity
-            clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-            
-            if clipboard.hasPrimaryClip():
-                clip = clipboard.getPrimaryClip()
-                if clip and clip.getItemCount() > 0:
-                    text = clip.getItemAt(0).getText()
-                    if text:
-                        field.text = str(text)
-                        toast("הודבק מאנדרואיד!")
-                        return
-        except Exception as e:
-            logger.error(f"Android clipboard failed: {e}")
-            
-        toast("לא נמצא טקסט להדבקה")
 
     def go_back(self, *args):
         self.manager.current = 'action'
@@ -253,7 +220,7 @@ class DownloadScreen(Screen):
                 self.tasks_map[session_id].text = text
         
         await ui_callback("Connecting...")
-        client = await self.account_manager.get_client(account_id)
+        client = self.account_manager.get_client(account_id)
         
         if not client:
             await ui_callback("Failed to connect client")

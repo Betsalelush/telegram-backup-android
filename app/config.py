@@ -9,9 +9,9 @@ class Config:
     """Application configuration"""
     
     # Sentry
-    SENTRY_DSN = "https://1f490b846ede82cfc3d5f6f5eb23263b@o4510215210598400.ingest.de.sentry.io/4510674676744272"
-    SENTRY_TRACES_SAMPLE_RATE = 1.0
-    SENTRY_ENVIRONMENT = "production"
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_SAMPLE_RATE", "1.0"))
+    SENTRY_ENVIRONMENT = os.getenv("APP_ENV", "production")
     
     # Paths (will be set at runtime)
     BASE_DIR = None
@@ -21,9 +21,9 @@ class Config:
     TRANSFERS_FILE = None
     
     # Telegram Rate Limiting
-    MAX_MESSAGES_PER_MINUTE = 20
-    SMART_DELAY_MIN = 2
-    SMART_DELAY_MAX = 8
+    MAX_MESSAGES_PER_MINUTE = int(os.getenv("MAX_MSG_PER_MIN", "20"))
+    SMART_DELAY_MIN = int(os.getenv("DELAY_MIN", "2"))
+    SMART_DELAY_MAX = int(os.getenv("DELAY_MAX", "8"))
     
     # Transfer Settings
     DEFAULT_TRANSFER_METHOD = "download_upload"
@@ -63,6 +63,9 @@ class Config:
         os.makedirs(cls.SESSIONS_DIR, exist_ok=True)
         os.makedirs(cls.PROGRESS_DIR, exist_ok=True)
         os.makedirs(cls.DOWNLOADS_DIR, exist_ok=True)
+
+        # Load .env if exists (manual primitive loading if needed, or rely on system env)
+        # Using pure system envs for now as requested for "senior" approach
     
     @classmethod
     def get_session_path(cls, phone):

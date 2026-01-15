@@ -6,7 +6,7 @@ import asyncio
 import urllib.parse
 from kivy.uix.screenmanager import Screen
 from kivy.properties import ObjectProperty
-from kivy.core.clipboard import Clipboard
+
 from kivy.uix.image import AsyncImage
 
 # KivyMD 2.0.0 Imports
@@ -152,45 +152,7 @@ class AccountsScreen(Screen):
         setattr(self, field_ref_name, field)
         return field
 
-    def do_paste(self, field):
-        """Paste from clipboard with Android support"""
-        capture_message("Paste button clicked (accounts)", level="info")
-        toast("מנסה להדביק...")
-        
-        # 1. Try Kivy's core clipboard first (simplest)
-        try:
-            text = Clipboard.paste()
-            if text:
-                field.text = text
-                toast("הודבק!")
-                return
-        except: pass
 
-        # 2. Try Android Native Clipboard (Pyjnius)
-        try:
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            Context = autoclass('android.content.Context')
-            activity = PythonActivity.mActivity
-            clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-            
-            if clipboard.hasPrimaryClip():
-                clip = clipboard.getPrimaryClip()
-                if clip and clip.getItemCount() > 0:
-                    text = clip.getItemAt(0).getText()
-                    if text:
-                        field.text = str(text)
-                        toast("הודבק מאנדרואיד!")
-                        return
-        except Exception as e:
-            logger.error(f"Android clipboard failed: {e}")
-
-        # 3. Last resort - insert directly if TextInput has focus (rarely helps but worth a shot)
-        try:
-             field.paste()
-        except: pass
-        
-        toast("לא נמצא טקסט להדבקה")
 
     # --- LIST LOADING ---
     def load_accounts_list(self):

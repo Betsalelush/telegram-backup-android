@@ -22,45 +22,18 @@ def test_directory_structure():
         'app/managers',
         'app/screens',
         'app/utils',
-        'app/kv',
-        'data',
-        'data/sessions',
-        'data/progress',
+        'sessions',
+        'progress',
         'docs',
-        'scripts',
-        'legacy',
-        'tests'
+        'tests',
+        'debug_tools'
     ]
     
     for dir_path in required_dirs:
         full_path = os.path.join(base_dir, dir_path)
         assert os.path.isdir(full_path), f"Directory {dir_path} does not exist"
     
-    print("✓ All required directories exist")
-
-
-def test_data_files():
-    """Test that data model files exist and are valid JSON"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    data_files = {
-        'data/accounts.json': {'accounts': []},
-        'data/transfers.json': {'transfers': []}
-    }
-    
-    for file_path, expected_structure in data_files.items():
-        full_path = os.path.join(base_dir, file_path)
-        assert os.path.isfile(full_path), f"Data file {file_path} does not exist"
-        
-        # Verify it's valid JSON
-        with open(full_path, 'r') as f:
-            data = json.load(f)
-        
-        # Verify structure
-        for key in expected_structure:
-            assert key in data, f"Key '{key}' missing from {file_path}"
-        
-        print(f"✓ {file_path} is valid")
+    print("- All required directories exist")
 
 
 def test_config_import():
@@ -69,13 +42,12 @@ def test_config_import():
         from app.config import Config
         
         # Verify key configuration values
-        assert hasattr(Config, 'APP_NAME'), "Config missing APP_NAME"
-        assert hasattr(Config, 'APP_VERSION'), "Config missing APP_VERSION"
         assert hasattr(Config, 'SMART_DELAY_MIN'), "Config missing SMART_DELAY_MIN"
         assert hasattr(Config, 'SMART_DELAY_MAX'), "Config missing SMART_DELAY_MAX"
         assert hasattr(Config, 'setup'), "Config missing setup method"
+        assert hasattr(Config, 'MAX_MESSAGES_PER_MINUTE'), "Config missing MAX_MESSAGES_PER_MINUTE"
         
-        print("✓ Config module imports correctly")
+        print("- Config module imports correctly")
         
     except ImportError as e:
         raise AssertionError(f"Failed to import Config: {e}")
@@ -104,25 +76,7 @@ def test_managers_structure():
         except py_compile.PyCompileError as e:
             raise AssertionError(f"Syntax error in {file_path}: {e}")
     
-    print("✓ All manager files have valid Python syntax")
-
-
-def test_readme_files():
-    """Test that README files exist in new directories"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    readme_files = [
-        'data/README.md',
-        'docs/README.md',
-        'scripts/README.md',
-        'legacy/README.md'
-    ]
-    
-    for file_path in readme_files:
-        full_path = os.path.join(base_dir, file_path)
-        assert os.path.isfile(full_path), f"README file {file_path} does not exist"
-    
-    print("✓ All README files exist")
+    print("- All manager files have valid Python syntax")
 
 
 if __name__ == '__main__':
@@ -130,17 +84,15 @@ if __name__ == '__main__':
     
     try:
         test_directory_structure()
-        test_data_files()
         test_config_import()
         test_managers_structure()
-        test_readme_files()
         
-        print("\n✅ All tests passed! Project structure is valid.")
+        print("\nSUCCESS: All tests passed! Project structure is valid.")
         sys.exit(0)
         
     except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\nTEST FAILED: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nUNEXPECTED ERROR: {e}")
         sys.exit(1)

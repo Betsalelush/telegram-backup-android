@@ -57,7 +57,8 @@ class AccountManager:
                     data = json.load(f)
                     self.global_api_id = data.get('global_api_id', "")
                     self.global_api_hash = data.get('global_api_hash', "")
-            except: pass
+            except Exception as e:
+                logger.error(f"Failed to load global settings from {self.accounts_file}: {e}")
 
     def save_global_settings(self, api_id: str, api_hash: str):
         """Save global API credentials"""

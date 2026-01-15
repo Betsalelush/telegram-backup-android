@@ -6,7 +6,24 @@ from typing import List, Dict, Optional
 from telethon import TelegramClient
 from telethon.tl.types import Channel, Chat
 
+
 from .logger import logger, add_breadcrumb
+import asyncio
+from sentry_logger import capture_exception
+
+def fire_and_forget(coro, context: str = ""):
+    """
+    Run an async task and log errors if it fails.
+    Useful for UI callbacks where exceptions might be swallowed.
+    """
+    async def wrapper():
+        try:
+            await coro
+        except Exception as e:
+            logger.error(f"{context} task failed: {e}")
+            capture_exception(e, {"context": context})
+    asyncio.create_task(wrapper())
+
 
 
 async def list_available_chats(client: TelegramClient) -> List[Dict]:

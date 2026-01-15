@@ -9,40 +9,32 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
-from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument
 
 from ..config import Config
 from ..utils.logger import logger, add_breadcrumb
 from ..utils.helpers import download_media, upload_media
 from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
-import os
 
 
-class TransferSession:
+from .base_session import BaseSession
+
+class TransferSession(BaseSession):
     """
     Represents a single active transfer session
     """
     def __init__(self, session_id: str, config: Dict):
-        self.session_id = session_id
-        self.config = config
-        self.stats = {
+        super().__init__(session_id, config)
+        # Extend stats specific to Transfer
+        self.stats.update({
             'total_sent': 0,
-            'total_skipped': 0,
-            'total_errors': 0,
             'consecutive_successes': 0
-        }
-        self.is_running = True
-        self.start_time = datetime.now()
-        self.status = "Initializing..."
-
-    def stop(self):
-        self.is_running = False
-        self.status = "Stopped"
+        })
 
     def update_stats(self, sent=0, skipped=0, errors=0, success=False):
         self.stats['total_sent'] += sent
         self.stats['total_skipped'] += skipped
         self.stats['total_errors'] += errors
+        self.stats['total_processed'] = self.stats['total_sent'] + self.stats['total_skipped'] + self.stats['total_errors']
         
         if success:
             self.stats['consecutive_successes'] += 1
@@ -53,41 +45,26 @@ class TransferSession:
 class TransferManager:
     """
     Manages multiple message transfer sessions
-    
-    Features:
-    - Multiple concurrent sessions
-    - Helper class TransferSession
-    - Round-robin between multiple accounts
-    - Global Rate limiting (20 msg/min per account)
-    - FloodWait handling
     """
     
     def __init__(self):
         """Initialize Transfer Manager"""
-        # Global Rate Limiting State
-        # We need to track rate limits PER CLIENT potentially, or globally if desired.
-        # Assuming global safety for now to be safe.
         self.messages_per_minute = 0
         self.minute_start_time = None
         self.max_messages_per_minute = Config.MAX_MESSAGES_PER_MINUTE
-        
-        # Client FloodWait State (Global)
-        self.client_flood_wait = {}  # client_id -> wait_until_time
-        
-        # Active Sessions
+        self.client_flood_wait = {} 
         self.sessions: Dict[str, TransferSession] = {}
         
         add_breadcrumb("TransferManager initialized")
     
-    def create_transfer(self, transfer_config: Dict) -> str:
-        """Create new transfer session"""
-        import uuid
-        session_id = f"task_{uuid.uuid4().hex[:8]}"
+    def create_session(self, session_id: str, transfer_config: Dict) -> None:
+        """Create a session with an externally provided ID (Standard API)"""
         session = TransferSession(session_id, transfer_config)
         self.sessions[session_id] = session
-        
-        logger.info(f"Created session: {session_id}")
-        return session_id
+        logger.info(f"Registered session: {session_id}")
+
+    # Legacy alias support if needed, or removal. 
+    # User asked for standard API. create_transfer removed in favor of create_session.
 
     def get_session(self, session_id: str) -> Optional[TransferSession]:
         return self.sessions.get(session_id)
@@ -344,6 +321,7 @@ class TransferManager:
         if consecutive_successes > 10:
             return random.uniform(Config.SMART_DELAY_MIN, Config.SMART_DELAY_MIN + 0.5)
         return random.uniform(Config.SMART_DELAY_MIN + 1, Config.SMART_DELAY_MAX)
+
     async def get_entity_robust(self, client, entity_id):
         """Try to resolve entity, refreshing dialogs if needed"""
         try:
@@ -352,7 +330,7 @@ class TransferManager:
                 # Try as int first if it's a string ID
                 try: 
                     return await client.get_entity(int(entity_id))
-                except: pass
+                except ValueError: pass
             
             return await client.get_entity(entity_id)
         except ValueError:
@@ -365,46 +343,6 @@ class TransferManager:
             if str(entity_id).startswith('-100'):
                 try: 
                     return await client.get_entity(int(entity_id))
-                except: pass
+                except ValueError as e:
+                    logger.debug(f"Retry get_entity as int failed for {entity_id}: {e}")
             return await client.get_entity(entity_id)
-
-    async def get_next_client(self, clients):
-        """Get next available client (Round Robin logic is simpler in caller)"""
-        # Here we just pick a random one or utilize the passed list logic
-        # For now, just return a random one to spread load
-        import random
-        return random.choice(clients)
-
-    async def check_global_rate_limit(self):
-        """Global rate limiting to avoid Bans"""
-        now = time.time()
-        
-        # Reset if minute passed
-        if not self.minute_start_time or (now - self.minute_start_time) > 60:
-            self.minute_start_time = now
-            self.messages_per_minute = 0
-            
-        # Check limit
-        if self.messages_per_minute >= self.max_messages_per_minute:
-            wait_time = 60 - (now - self.minute_start_time) + 1
-            if wait_time > 0:
-                logger.warning(f"Global rate limit hit ({self.messages_per_minute}/min). Waiting {wait_time:.1f}s...")
-                await asyncio.sleep(wait_time)
-                # Reset after wait
-                self.minute_start_time = time.time()
-                self.messages_per_minute = 0
-                
-        self.messages_per_minute += 1
-
-    def calculate_delay(self, consecutive_successes):
-        """Smart delay based on success streak"""
-        # Base delay 2-5 seconds
-        base = random.uniform(2, 5)
-        
-        # If we are on a roll, we can go slightly faster (down to 1.5s)
-        # But assume safey first
-        if consecutive_successes > 50:
-             # Very stable, maybe 1.5 - 3
-             return random.uniform(1.5, 3.0)
-        
-        return base
