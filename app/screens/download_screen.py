@@ -31,7 +31,7 @@ from kivymd.uix.appbar import (
 from kivymd.toast import toast
 
 from ..managers.download_manager import DownloadManager
-from ..utils.logger import logger, add_breadcrumb, capture_message
+from ..utils.logger import logger, add_breadcrumb, capture_message, capture_exception
 
 
 class DownloadScreen(Screen):
@@ -219,21 +219,27 @@ class DownloadScreen(Screen):
             if session_id in self.tasks_map:
                 self.tasks_map[session_id].text = text
         
-        await ui_callback("Connecting...")
-        client = self.account_manager.get_client(account_id)
-        
-        if not client:
-            await ui_callback("Failed to connect client")
-            return
+        try:
+            await ui_callback("Connecting...")
+            client = self.account_manager.get_client(account_id)
             
-        file_types = {k: v.active for k,v in self.checks.items()}
-        
-        self.download_manager.create_session(session_id)
-        
-        await self.download_manager.download_channel(
-            session_id, 
-            client, 
-            source, 
-            file_types, 
-            ui_callback
-        )
+            if not client:
+                await ui_callback("Failed to connect client")
+                return
+                
+            file_types = {k: v.active for k,v in self.checks.items()}
+            
+            self.download_manager.create_session(session_id)
+            
+            await self.download_manager.download_channel(
+                session_id, 
+                client, 
+                source, 
+                file_types, 
+                ui_callback
+            )
+        except Exception as e:
+            logger.error(f"Download screen error: {e}")
+            capture_exception(e, extra_data={"session_id": session_id, "account_id": account_id, "source": source, "context": "download_screen_run"})
+            if session_id in self.tasks_map:
+                self.tasks_map[session_id].text = f"Error: {e}"

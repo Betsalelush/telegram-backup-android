@@ -11,7 +11,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 
 from ..config import Config
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_exception, set_transfer_context
 from ..utils.helpers import download_media, upload_media
 from telethon.tl.types import Message, MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
 
@@ -92,6 +92,9 @@ class TransferManager:
             start_id = config.get('start_id', 0)
             file_types = config.get('file_types', [])
             
+            # Set transfer context for Sentry
+            set_transfer_context(session_id, source_channel=str(source), target_channel=str(target))
+            
             # 1. Resolve Entities
             status_callback(session_id, "Resolving channels...")
             primary = clients[0]
@@ -100,10 +103,12 @@ class TransferManager:
                 source_entity = await self.get_entity_robust(primary, source)
                 target_entity = await self.get_entity_robust(primary, target)
             except Exception as e:
+                capture_exception(e, extra_data={"source": source, "target": target, "context": "resolve_channels"})
                 raise Exception(f"Failed to resolve channel ({source} -> {target}): {e}. Make sure the account is a member.")
             
             # 2. Iterate Messages
             status_callback(session_id, f"Scanning from ID {start_id}...")
+            add_breadcrumb("transfer", "Starting message iteration", "info", {"session_id": session_id, "start_id": start_id})
             
             kwargs = {'reverse': True}
             if start_id > 0:
@@ -140,10 +145,16 @@ class TransferManager:
             if session.is_running:
                 session.status = "Completed"
                 status_callback(session_id, "Completed Successfully!")
+                add_breadcrumb("transfer", "Transfer completed", "info", {
+                    "session_id": session_id,
+                    "total_sent": session.stats.get('total_sent', 0),
+                    "total_errors": session.stats.get('total_errors', 0)
+                })
                 session.is_running = False
                 
         except Exception as e:
             logger.error(f"Session {session_id} error: {e}")
+            capture_exception(e, extra_data={"session_id": session_id, "context": "start_mass_transfer"})
             session.status = f"Error: {str(e)}"
             status_callback(session_id, f"Error: {str(e)}")
             session.is_running = False
@@ -174,10 +185,12 @@ class TransferManager:
                 success = await self.transfer_single_message(client, message, source, target, file_types, mode)
                 if success:
                     session.update_stats(sent=1, success=True)
+                    add_breadcrumb("transfer", "Message transferred", "debug", {"message_id": message.id, "mode": mode})
                 else:
                     session.update_stats(errors=1, success=False)
             except Exception as e:
                 logger.error(f"Transfer error: {e}")
+                capture_exception(e, extra_data={"message_id": message.id, "mode": mode, "context": "process_batch"})
                 session.update_stats(errors=1, success=False)
             
             # Delay
@@ -236,6 +249,7 @@ class TransferManager:
                     except TypeError as e:
                          # Fallback for unsupported media types in send_file
                          logger.warning(f"Unsupported media for send_file: {type(message.media)}. Sending text only.")
+                         capture_exception(e, extra_data={"message_id": message.id, "media_type": str(type(message.media)), "context": "send_file_fallback"})
                          if message.text:
                              await client.send_message(target, message.text)
                              return True
@@ -270,6 +284,7 @@ class TransferManager:
             
         except Exception as e:
             logger.error(f"Transfer error ({mode}): {e}")
+            capture_exception(e, extra_data={"message_id": message.id if hasattr(message, 'id') else None, "mode": mode, "context": "transfer_single_message"})
             raise e
 
     async def check_global_rate_limit(self):
@@ -333,16 +348,21 @@ class TransferManager:
                 except ValueError: pass
             
             return await client.get_entity(entity_id)
-        except ValueError:
+        except ValueError as e:
             # Not found in cache, might need to refresh dialogs
             logger.info(f"Entity {entity_id} not found, refreshing dialogs...")
             # We don't get all dialogs as it's expensive, but 'get_dialogs' refreshes cache
-            await client.get_dialogs(limit=100) 
-            
-            # Retry
-            if str(entity_id).startswith('-100'):
-                try: 
-                    return await client.get_entity(int(entity_id))
-                except ValueError as e:
-                    logger.debug(f"Retry get_entity as int failed for {entity_id}: {e}")
-            return await client.get_entity(entity_id)
+            try:
+                await client.get_dialogs(limit=100) 
+                
+                # Retry
+                if str(entity_id).startswith('-100'):
+                    try: 
+                        return await client.get_entity(int(entity_id))
+                    except ValueError as retry_e:
+                        logger.debug(f"Retry get_entity as int failed for {entity_id}: {retry_e}")
+                        capture_exception(retry_e, extra_data={"entity_id": entity_id, "context": "get_entity_robust_retry_int"})
+                return await client.get_entity(entity_id)
+            except Exception as refresh_e:
+                capture_exception(refresh_e, extra_data={"entity_id": entity_id, "original_error": str(e), "context": "get_entity_robust_refresh"})
+                raise
