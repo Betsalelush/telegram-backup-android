@@ -218,7 +218,6 @@ class AccountsScreen(Screen):
             status_text = "Connected" if is_connected else "Not Connected"
             
             item = MDListItem(
-                type="small",
                 pos_hint={"center_x": .5, "center_y": .5}
             )
             

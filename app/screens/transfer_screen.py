@@ -296,7 +296,7 @@ class TransferScreen(Screen):
         asyncio.create_task(self.run_transfer(session_id, selected_accs, source, target, start_id))
 
     def add_task_item(self, session_id):
-        item = MDListItem(type="small")
+        item = MDListItem()
         headline = MDListItemHeadlineText(text=f"Task: {session_id}")
         supporting = MDListItemSupportingText(text="Initializing...")
         

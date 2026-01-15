@@ -240,7 +240,7 @@ class DownloadScreen(Screen):
         asyncio.create_task(self.run_download(session_id, acc_id, source))
 
     def add_task_item(self, session_id):
-        item = MDListItem(type="small")
+        item = MDListItem()
         headline = MDListItemHeadlineText(text=f"Task: {session_id}")
         supporting = MDListItemSupportingText(text="Initializing...")
         
