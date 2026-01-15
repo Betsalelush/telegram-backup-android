@@ -234,18 +234,22 @@ class TransferScreen(Screen):
                         if text:
                             field.text = str(text)
                             toast("הודבק!")
+                            logger.info("Paste successful (Android clipboard)")
                             return
-            except:
-                # Fallback to Kivy clipboard
-                pass
+                logger.warning("Android clipboard empty or no clip")
+            except Exception as e:
+                # Log the Android clipboard error
+                logger.error(f"Android clipboard failed: {e}")
             
             # Kivy clipboard fallback
             text = Clipboard.paste()
             if text:
                 field.text = text
                 toast("הודבק!")
+                logger.info("Paste successful (Kivy clipboard)")
             else:
                 toast("אין טקסט בלוח")
+                logger.warning("Clipboard is empty")
         except Exception as e:
             logger.error(f"Paste error: {e}")
             toast("ההדבקה נכשלה")

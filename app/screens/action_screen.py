@@ -59,10 +59,9 @@ class ActionScreen(Screen):
         # Main Central Layout
         center_layout = MDBoxLayout(
             orientation='vertical',
-            padding="30dp",
-            spacing="25dp", # Slightly tighter spacing
+            spacing="25dp",
             pos_hint={"center_x": 0.5},
-            adaptive_height=True
+            size_hint_x=0.9  # 90% width for nice margins
         )
 
         # Title
