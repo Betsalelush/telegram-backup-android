@@ -150,12 +150,7 @@ class AccountsScreen(Screen):
         
         # Trailing paste icon
         paste_icon = MDTextFieldTrailingIcon(icon="content-paste")
-        # Bind with on_touch_down for reliable clicking
-        def handle_paste_click(instance, touch):
-            if instance.collide_point(*touch.pos):
-                self.do_paste(field)
-                return True
-        paste_icon.bind(on_touch_down=handle_paste_click)
+        paste_icon.bind(on_release=lambda x: self.do_paste(field))
         field.add_widget(paste_icon)
         
         setattr(self, field_ref_name, field)
