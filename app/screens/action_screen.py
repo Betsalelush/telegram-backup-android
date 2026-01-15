@@ -81,7 +81,6 @@ class ActionScreen(Screen):
         buttons = [
             ("Manage Accounts", "accounts", "account-group"),
             ("Transfer Console", "transfer", "transfer"),
-            ("Download Chat", "download", "download"),
         ]
         
         for text, screen, icon in buttons:

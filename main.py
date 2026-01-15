@@ -34,11 +34,12 @@ except Exception as e:
 
 # Initialize Sentry immediately to capture startup/import errors
 try:
-    import sentry_logger
-    logger.info("Sentry logger imported successfully")
-    sentry_logger.add_breadcrumb('system', 'Main entry point started')
+    from app.utils.logger import init_sentry, add_breadcrumb
+    init_sentry()
+    logger.info("Sentry logger initialized successfully")
+    add_breadcrumb('system', 'Main entry point started')
 except Exception as e:
-    logger.error(f"CRITICAL: Failed to import sentry_logger: {e}")
+    logger.error(f"CRITICAL: Failed to initialize Sentry: {e}")
     traceback.print_exc()
 
 
@@ -70,23 +71,21 @@ def main():
         logger.error(f"Import Error during startup: {e}")
         traceback.print_exc()
         # Try to report to Sentry
-        if 'sentry_logger' in sys.modules:
-            try:
-                import sentry_logger
-                sentry_logger.capture_exception(e, {"context": "startup_import_error"})
-                time.sleep(2)
-            except Exception: pass
+        try:
+            from app.utils.logger import capture_exception
+            capture_exception(e, extra_data={"context": "startup_import_error"})
+            time.sleep(2)
+        except Exception: pass
         sys.exit(1)
         
     except Exception as e:
         logger.error(f"Runtime Error during startup: {e}")
         traceback.print_exc()
-        if 'sentry_logger' in sys.modules:
-            try:
-                import sentry_logger
-                sentry_logger.capture_exception(e, {"context": "startup_runtime_error"})
-                time.sleep(2)
-            except Exception: pass
+        try:
+            from app.utils.logger import capture_exception
+            capture_exception(e, extra_data={"context": "startup_runtime_error"})
+            time.sleep(2)
+        except Exception: pass
             
         # Emergency local log - Try to write to Downloads for visibility
         try:

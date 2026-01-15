@@ -13,7 +13,7 @@ from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 import telethon.utils
 
 from app.config import Config
-from app.utils.logger import logger
+from app.utils.logger import logger, capture_exception, add_breadcrumb
 
 from .base_session import BaseSession
 
@@ -55,6 +55,7 @@ class DownloadManager:
         try:
             # 1. Resolve Entity
             status_callback("Resolving channel...")
+            add_breadcrumb("download", "Download started", "info", {"session_id": session_id, "source": str(source)})
             entity = await self._get_entity_robust(client, source)
             if not entity:
                 status_callback("Error: Could not find channel")
@@ -68,6 +69,7 @@ class DownloadManager:
             safe_name = "".join([c for c in channel_name if c.isalnum() or c in (' ', '-', '_')]).strip()
             save_path = os.path.join(self.base_download_path, f"{safe_name}_{session_id}")
             os.makedirs(save_path, exist_ok=True)
+            add_breadcrumb("download", "Download directory created", "info", {"session_id": session_id, "save_path": save_path})
             
             count = 0
             async for message in client.iter_messages(entity, reverse=True): # Oldest to newest
@@ -104,6 +106,7 @@ class DownloadManager:
                     
                 except Exception as e:
                     logger.error(f"Download error msg {message.id}: {e}")
+                    capture_exception(e, extra_data={"message_id": message.id, "session_id": session_id, "context": "download_message"})
                     session.total_errors += 1
                 
                 count += 1
@@ -111,9 +114,15 @@ class DownloadManager:
                     status_callback(f"Downloaded: {session.total_downloaded} | Errors: {session.total_errors}")
 
             status_callback(f"Complete! Saved to {safe_name}_{session_id}")
+            add_breadcrumb("download", "Download completed", "info", {
+                "session_id": session_id,
+                "total_downloaded": session.total_downloaded,
+                "total_errors": session.total_errors
+            })
             
         except Exception as e:
             logger.error(f"Download fatal error: {e}")
+            capture_exception(e, extra_data={"session_id": session_id, "source": str(source), "context": "download_channel"})
             status_callback(f"Error: {e}")
             
     def _should_download(self, message, file_types):
@@ -154,13 +163,19 @@ class DownloadManager:
             if source.isdigit() or (source.startswith('-') and source[1:].isdigit()):
                 source = int(source)
             return await client.get_entity(source)
-        except ValueError:
+        except ValueError as e:
              # Refresh cache
-            await client.get_dialogs(limit=50)
             try:
-                return await client.get_entity(source)
-            except Exception:
+                await client.get_dialogs(limit=50)
+                try:
+                    return await client.get_entity(source)
+                except Exception as retry_e:
+                    capture_exception(retry_e, extra_data={"source": str(source), "context": "get_entity_robust_retry"})
+                    return None
+            except Exception as refresh_e:
+                capture_exception(refresh_e, extra_data={"source": str(source), "original_error": str(e), "context": "get_entity_robust_refresh"})
                 return None
         except Exception as e:
             logger.error(f"Entity Resolve Error: {e}")
+            capture_exception(e, extra_data={"source": str(source), "context": "get_entity_robust"})
             return None

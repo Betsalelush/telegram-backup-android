@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..config import Config
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_exception
 
 
 class ProgressManager:
@@ -85,6 +85,7 @@ class ProgressManager:
             
         except Exception as e:
             logger.error(f"Error loading progress for {key}: {e}")
+            capture_exception(e, extra_data={"key": key, "source_id": source_id, "target_id": target_id, "context": "load_progress"})
             return {
                 'sent_message_ids': [],
                 'last_message_id': 0,
@@ -142,6 +143,7 @@ class ProgressManager:
             
         except Exception as e:
             logger.error(f"Error saving progress for {key}: {e}")
+            capture_exception(e, extra_data={"key": key, "source_id": source_id, "target_id": target_id, "total_sent": total_sent, "context": "save_progress"})
             return False
     
     def get_all_progress(self) -> Dict[str, Dict]:
@@ -164,12 +166,14 @@ class ProgressManager:
                             all_progress[key] = json.load(f)
                     except Exception as e:
                         logger.error(f"Error loading {filename}: {e}")
+                        capture_exception(e, extra_data={"filename": filename, "context": "get_all_progress"})
             
             logger.info(f"Loaded {len(all_progress)} progress files")
             return all_progress
             
         except Exception as e:
             logger.error(f"Error getting all progress: {e}")
+            capture_exception(e, extra_data={"context": "get_all_progress"})
             return {}
     
     def clear_progress(self, source_id: str, target_id: str) -> bool:
@@ -198,6 +202,7 @@ class ProgressManager:
                 
         except Exception as e:
             logger.error(f"Error clearing progress for {key}: {e}")
+            capture_exception(e, extra_data={"key": key, "source_id": source_id, "target_id": target_id, "context": "clear_progress"})
             return False
     
     def update_progress(self, source_id: str, target_id: str, message_id: int):
@@ -260,4 +265,5 @@ class ProgressManager:
             
         except Exception as e:
             logger.error(f"Error cleaning old progress: {e}")
+            capture_exception(e, extra_data={"days": days, "context": "cleanup_old_progress"})
             return 0

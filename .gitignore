@@ -41,3 +41,6 @@ data/progress/*
 
 # Debug and testing tools (historical, contains sensitive tokens)
 debug_tools/
+
+# Environment secrets
+.env

@@ -12,7 +12,7 @@ from telethon.sessions import MemorySession
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 
 from ..config import Config
-from ..utils.logger import logger, add_breadcrumb
+from ..utils.logger import logger, add_breadcrumb, capture_exception, set_user_context
 
 
 class AccountManager:
@@ -59,6 +59,7 @@ class AccountManager:
                     self.global_api_hash = data.get('global_api_hash', "")
             except Exception as e:
                 logger.error(f"Failed to load global settings from {self.accounts_file}: {e}")
+                capture_exception(e, extra_data={"accounts_file": self.accounts_file})
 
     def save_global_settings(self, api_id: str, api_hash: str):
         """Save global API credentials"""
@@ -79,6 +80,7 @@ class AccountManager:
                 json.dump(data, f, indent=4)
         except Exception as e:
             logger.error(f"Failed to save global settings: {e}")
+            capture_exception(e, extra_data={"accounts_file": self.accounts_file, "api_id": api_id})
     
     def load_accounts(self):
         """
@@ -103,6 +105,7 @@ class AccountManager:
             
         except Exception as e:
             logger.error(f"Error loading accounts: {e}")
+            capture_exception(e, extra_data={"accounts_file": self.accounts_file})
             self.accounts = []
             return self.accounts
     
@@ -128,6 +131,7 @@ class AccountManager:
             
         except Exception as e:
             logger.error(f"Error saving accounts: {e}")
+            capture_exception(e, extra_data={"accounts_file": self.accounts_file, "accounts_count": len(self.accounts)})
             return False
     
     def add_account(self, name: str, phone: str, api_id: str = None, api_hash: str = None) -> str:
@@ -237,12 +241,15 @@ class AccountManager:
             self.save_accounts()
             
             logger.info(f"Connected account: {account['name']}")
-            add_breadcrumb("Account connected", {"account_id": account_id})
+            add_breadcrumb("auth", "Account connected successfully", "info", {"account_id": account_id, "phone": account.get('phone')})
+            # Set user context for Sentry
+            set_user_context(account_id=account_id, phone=account.get('phone'))
             
             return True
             
         except Exception as e:
             logger.error(f"Error connecting account {account_id}: {e}")
+            capture_exception(e, extra_data={"account_id": account_id, "phone": account.get('phone') if account else None})
             return False
 
     async def send_login_code(self, account_id: str):
@@ -251,6 +258,7 @@ class AccountManager:
         if not account: return None
         
         try:
+            add_breadcrumb("auth", "Sending login code", "info", {"account_id": account_id, "phone": account.get('phone')})
             client = self.clients.get(account_id)
             if not client or not client.is_connected():
                 client = TelegramClient(
@@ -261,9 +269,12 @@ class AccountManager:
                 await client.connect()
                 self.clients[account_id] = client
             
-            return await client.send_code_request(account['phone'])
+            result = await client.send_code_request(account['phone'])
+            add_breadcrumb("auth", "Login code sent successfully", "info", {"account_id": account_id})
+            return result
         except Exception as e:
             logger.error(f"Error sending code: {e}")
+            capture_exception(e, extra_data={"account_id": account_id, "phone": account.get('phone') if account else None})
             raise e
 
     async def sign_in(self, account_id: str, phone_code_hash: str, code: str, password: str = None):
@@ -286,10 +297,14 @@ class AccountManager:
             account['is_connected'] = True
             account['authorized'] = True
             self.save_accounts()
+            add_breadcrumb("auth", "Sign in successful", "info", {"account_id": account_id, "phone": account.get('phone')})
+            # Set user context for Sentry
+            set_user_context(account_id=account_id, phone=account.get('phone'))
             return user
             
         except Exception as e:
             logger.error(f"Sign in error: {e}")
+            capture_exception(e, extra_data={"account_id": account_id, "phone": account.get('phone') if account else None, "has_password": password is not None})
             raise e
 
     async def start_qr_auth(self, account_id: str):
@@ -321,11 +336,14 @@ class AccountManager:
                 logger.info(f"Account {account_id} already authorized")
                 return None, client
                 
+            add_breadcrumb("auth", "Starting QR authentication", "info", {"account_id": account_id})
             qr_login = await client.qr_login()
+            add_breadcrumb("auth", "QR code generated", "info", {"account_id": account_id})
             return qr_login, client
             
         except Exception as e:
             logger.error(f"Error starting QR auth for {account_id}: {e}")
+            capture_exception(e, extra_data={"account_id": account_id, "phone": account.get('phone') if account else None})
             return None, None
     
     async def disconnect_account(self, account_id: str):
@@ -355,6 +373,7 @@ class AccountManager:
             
         except Exception as e:
             logger.error(f"Error disconnecting account {account_id}: {e}")
+            capture_exception(e, extra_data={"account_id": account_id})
     
     def get_account(self, account_id: str) -> Optional[Dict]:
         """

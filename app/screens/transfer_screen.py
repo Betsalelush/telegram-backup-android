@@ -36,7 +36,7 @@ from kivymd.toast import toast
 from ..managers.transfer_manager import TransferManager
 from ..managers.account_manager import AccountManager
 from ..managers.progress_manager import ProgressManager
-from ..utils.logger import logger, add_breadcrumb, capture_message
+from ..utils.logger import logger, add_breadcrumb, capture_message, capture_exception
 
 
 class TransferScreen(Screen):
@@ -300,4 +300,5 @@ class TransferScreen(Screen):
             self.update_task_status(session_id, "Completed")
         except Exception as e:
             logger.error(f"Transfer Error: {e}")
+            capture_exception(e, extra_data={"session_id": session_id, "source": source, "target": target, "context": "run_transfer"})
             self.update_task_status(session_id, f"Error: {e}")

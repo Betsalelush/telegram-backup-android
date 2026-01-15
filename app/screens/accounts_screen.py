@@ -42,7 +42,7 @@ from kivymd.uix.appbar import (
 from kivymd.toast import toast
 
 from ..managers.account_manager import AccountManager
-from ..utils.logger import logger, add_breadcrumb, capture_message
+from ..utils.logger import logger, add_breadcrumb, capture_message, capture_exception
 
 
 class AccountsScreen(Screen):
@@ -201,10 +201,7 @@ class AccountsScreen(Screen):
             # Item click -> Options (Connect / Enter Code)
             item.bind(on_release=lambda x, a=acc: self.show_account_options(a))
 
-            # Trailing Action -> Trash (Remove directly)
-            trailing = MDListItemTrailingIcon(icon="delete-outline")
-            trailing.bind(on_release=lambda x, a=acc: self.confirm_delete_account(a))
-            item.add_widget(trailing)
+
             
             self.accounts_list.add_widget(item)
 
@@ -279,6 +276,7 @@ class AccountsScreen(Screen):
                 
         except Exception as e:
             logger.error(f"Add account error: {e}")
+            capture_exception(e, extra_data={"context": "add_account"})
             toast(f"Error: {e}")
 
     def show_global_settings(self, *args):
@@ -349,8 +347,6 @@ class AccountsScreen(Screen):
             btn_disc.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'disconnect'))
             content.add_widget(btn_disc)
         
-        # Note: Delete is now via trash icon on the list item
-        
         self.options_dialog.add_widget(content)
         self.options_dialog.open()
 
@@ -366,10 +362,6 @@ class AccountsScreen(Screen):
             asyncio.create_task(self._process_qr(account_id))
         elif action == 'disconnect':
             asyncio.create_task(self._handle_disconnect(account_id))
-        elif action == 'delete':
-            self.account_manager.remove_account(account_id)
-            self.load_accounts_list()
-            toast("Account Removed")
 
     async def _handle_disconnect(self, account_id):
         await self.account_manager.disconnect_account(account_id)
@@ -415,6 +407,7 @@ class AccountsScreen(Screen):
             self.phone_code_hash = res.phone_code_hash
             self.show_auth_dialog(account_id, "Enter SMS Code", mode="code")
         except Exception as e:
+            capture_exception(e, extra_data={"account_id": account_id, "context": "send_login_code"})
             toast(f"Error: {e}")
 
     def show_auth_dialog(self, account_id, title, mode="code"):
@@ -467,6 +460,7 @@ class AccountsScreen(Screen):
                 toast("Login Successful!")
                 self.load_accounts_list()
         except Exception as e:
+            capture_exception(e, extra_data={"account_id": account_id, "has_password": password is not None, "context": "finish_login"})
             toast(f"Login failed: {e}")
 
     async def _process_qr(self, account_id):
@@ -508,6 +502,7 @@ class AccountsScreen(Screen):
             
         except Exception as e:
             logger.error(f"QR Error: {e}")
+            capture_exception(e, extra_data={"account_id": account_id, "context": "process_qr"})
             toast(f"QR Error: {e}")
             self.close_qr_dialog()
 
