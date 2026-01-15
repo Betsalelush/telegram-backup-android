@@ -88,7 +88,8 @@ class ActionScreen(Screen):
         for text, screen, icon in buttons:
             btn = MDButton(
                 style="filled",
-                pos_hint={"center_x": 0.5}
+                pos_hint={"center_x": 0.5},
+                size_hint_x=1
             )
             
             if icon:

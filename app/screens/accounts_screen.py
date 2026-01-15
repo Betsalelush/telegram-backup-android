@@ -157,15 +157,39 @@ class AccountsScreen(Screen):
         return field
 
     def do_paste(self, field):
-        """Paste from clipboard to field"""
+        """Paste from clipboard with Android support"""
         try:
+            # Try Android clipboard first
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                ClipboardManager = autoclass('android.content.ClipboardManager')
+                Context = autoclass('android.content.Context')
+                
+                activity = PythonActivity.mActivity
+                clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                
+                if clipboard.hasPrimaryClip():
+                    clip = clipboard.getPrimaryClip()
+                    if clip.getItemCount() > 0:
+                        text = clip.getItemAt(0).getText()
+                        if text:
+                            field.text = str(text)
+                            toast("הודבק!")
+                            return
+            except:
+                pass
+            
+            # Kivy clipboard fallback
             text = Clipboard.paste()
             if text:
                 field.text = text
-                toast("Pasted!")
+                toast("הודבק!")
+            else:
+                toast("אין טקסט בלוח")
         except Exception as e:
             logger.error(f"Paste error: {e}")
-            toast("Paste failed")
+            toast("ההדבקה נכשלה")
 
     # --- LIST LOADING ---
     def load_accounts_list(self):
