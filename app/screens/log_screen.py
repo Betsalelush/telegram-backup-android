@@ -92,9 +92,18 @@ class LogScreen(Screen):
                 Clock.schedule_once(lambda dt: self.screen.append_log(msg))
                 
         handler = UILogHandler(self)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S')
         handler.setFormatter(formatter)
+        
+        # Attach to Root Logger
         logging.getLogger().addHandler(handler)
+        
+        # Attach explicitly to our loggers to be sure
+        logging.getLogger("Launcher").addHandler(handler)
+        logging.getLogger("TelegramBackup").addHandler(handler)
+        
+        # Also catch Kivy logs if they sneak throguh
+        logging.getLogger("kivy").addHandler(handler)
         
     def append_log(self, msg):
         self.log_text += msg + "\n"

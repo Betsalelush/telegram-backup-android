@@ -159,42 +159,42 @@ class AccountsScreen(Screen):
     def do_paste(self, field):
         """Paste from clipboard with Android support"""
         capture_message("Paste button clicked (accounts)", level="info")
+        toast("מנסה להדביק...")
+        
+        # 1. Try Kivy's core clipboard first (simplest)
         try:
-            # Try Android clipboard first
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                ClipboardManager = autoclass('android.content.ClipboardManager')
-                Context = autoclass('android.content.Context')
-                
-                activity = PythonActivity.mActivity
-                clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                
-                if clipboard.hasPrimaryClip():
-                    clip = clipboard.getPrimaryClip()
-                    if clip.getItemCount() > 0:
-                        text = clip.getItemAt(0).getText()
-                        if text:
-                            field.text = str(text)
-                            toast("הודבק!")
-                            logger.info("Paste successful (Android clipboard)")
-                            return
-                logger.warning("Android clipboard empty or no clip")
-            except Exception as e:
-                logger.error(f"Android clipboard failed: {e}")
-            
-            # Kivy clipboard fallback
             text = Clipboard.paste()
             if text:
                 field.text = text
                 toast("הודבק!")
-                logger.info("Paste successful (Kivy clipboard)")
-            else:
-                toast("אין טקסט בלוח")
-                logger.warning("Clipboard is empty")
+                return
+        except: pass
+
+        # 2. Try Android Native Clipboard (Pyjnius)
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Context = autoclass('android.content.Context')
+            activity = PythonActivity.mActivity
+            clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+            
+            if clipboard.hasPrimaryClip():
+                clip = clipboard.getPrimaryClip()
+                if clip and clip.getItemCount() > 0:
+                    text = clip.getItemAt(0).getText()
+                    if text:
+                        field.text = str(text)
+                        toast("הודבק מאנדרואיד!")
+                        return
         except Exception as e:
-            logger.error(f"Paste error: {e}")
-            toast("ההדבקה נכשלה")
+            logger.error(f"Android clipboard failed: {e}")
+
+        # 3. Last resort - insert directly if TextInput has focus (rarely helps but worth a shot)
+        try:
+             field.paste()
+        except: pass
+        
+        toast("לא נמצא טקסט להדבקה")
 
     # --- LIST LOADING ---
     def load_accounts_list(self):
@@ -379,6 +379,13 @@ class AccountsScreen(Screen):
         btn_qr.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'qr_connect'))
         content.add_widget(btn_qr)
         
+        # DISCONNECT (Log Out)
+        if account.get('is_connected'):
+            btn_disc = MDButton(style="tonal", pos_hint={"center_x": .5})
+            btn_disc.add_widget(MDButtonText(text="DISCONNECT"))
+            btn_disc.bind(on_release=lambda x: self.deferred_dialog_action(acc_id, 'disconnect'))
+            content.add_widget(btn_disc)
+        
         # REMOVE
         btn_del = MDButton(style="text", pos_hint={"center_x": .5})
         btn_del.add_widget(MDButtonText(text="REMOVE FROM APP", theme_text_color="Error"))
@@ -396,10 +403,17 @@ class AccountsScreen(Screen):
             asyncio.create_task(self._handle_manual_login(account_id))
         elif action == 'qr_connect':
             asyncio.create_task(self._process_qr(account_id))
+        elif action == 'disconnect':
+            asyncio.create_task(self._handle_disconnect(account_id))
         elif action == 'delete':
             self.account_manager.remove_account(account_id)
             self.load_accounts_list()
             toast("Account Removed")
+
+    async def _handle_disconnect(self, account_id):
+        await self.account_manager.disconnect_account(account_id)
+        self.load_accounts_list()
+        toast("Disconnected")
 
     # --- LOGIN LOGIC ---
 

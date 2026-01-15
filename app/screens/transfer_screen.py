@@ -216,44 +216,38 @@ class TransferScreen(Screen):
 
     def do_paste(self, field):
         """Paste from clipboard with Android support"""
-        capture_message("Paste button clicked", level="info")
+        capture_message("Paste button clicked (transfer)", level="info")
+        toast("מנסה להדביק...")
+        
+        # 1. Try Kivy's core clipboard first
         try:
-            # Try Android clipboard first (for pyjnius)
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                ClipboardManager = autoclass('android.content.ClipboardManager')
-                Context = autoclass('android.content.Context')
-                
-                activity = PythonActivity.mActivity
-                clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                
-                if clipboard.hasPrimaryClip():
-                    clip = clipboard.getPrimaryClip()
-                    if clip.getItemCount() > 0:
-                        text = clip.getItemAt(0).getText()
-                        if text:
-                            field.text = str(text)
-                            toast("הודבק!")
-                            logger.info("Paste successful (Android clipboard)")
-                            return
-                logger.warning("Android clipboard empty or no clip")
-            except Exception as e:
-                # Log the Android clipboard error
-                logger.error(f"Android clipboard failed: {e}")
-            
-            # Kivy clipboard fallback
             text = Clipboard.paste()
             if text:
                 field.text = text
                 toast("הודבק!")
-                logger.info("Paste successful (Kivy clipboard)")
-            else:
-                toast("אין טקסט בלוח")
-                logger.warning("Clipboard is empty")
+                return
+        except: pass
+
+        # 2. Try Android Native Clipboard (Pyjnius)
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Context = autoclass('android.content.Context')
+            activity = PythonActivity.mActivity
+            clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+            
+            if clipboard.hasPrimaryClip():
+                clip = clipboard.getPrimaryClip()
+                if clip and clip.getItemCount() > 0:
+                    text = clip.getItemAt(0).getText()
+                    if text:
+                        field.text = str(text)
+                        toast("הודבק מאנדרואיד!")
+                        return
         except Exception as e:
-            logger.error(f"Paste error: {e}")
-            toast("ההדבקה נכשלה")
+            logger.error(f"Android clipboard failed: {e}")
+            
+        toast("לא נמצא טקסט להדבקה")
 
     def shorten_links(self, *args):
         from ..utils.url_shortener import shorten_url
@@ -315,7 +309,7 @@ class TransferScreen(Screen):
         
         clients = []
         for aid in account_ids:
-            client = await self.account_manager.get_client(aid)
+            client = self.account_manager.get_client(aid)
             if client: clients.append(client)
             
         if not clients:
