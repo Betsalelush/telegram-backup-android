@@ -81,6 +81,7 @@ class ActionScreen(Screen):
         buttons = [
             ("Manage Accounts", "accounts", "account-group"),
             ("Transfer Console", "transfer", "transfer"),
+            ("View Logs", "logs", "text-box-outline"),
         ]
         
         for text, screen, icon in buttons:
